@@ -10,6 +10,14 @@ npm.cmd run dev
 
 Then open the localhost URL printed by the server.
 
+## Build
+
+```powershell
+npm.cmd run build
+```
+
+The static production files are written to `dist/`.
+
 ## What is included
 
 - Four primary tabs: Home, Together, Memories, Library
