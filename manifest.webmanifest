@@ -1,0 +1,19 @@
+{
+  "name": "AfterLife",
+  "short_name": "AfterLife",
+  "description": "A private long-distance home for Mo and Aysel.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f6f7f8",
+  "theme_color": "#211a1f",
+  "categories": ["lifestyle", "social", "productivity"],
+  "icons": [
+    {
+      "src": "icons/afterlife-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

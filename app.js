@@ -120,6 +120,15 @@ const defaultState = {
 
 let state = loadState();
 let toastTimer = null;
+let deferredInstallPrompt = null;
+let refreshingFromServiceWorker = false;
+
+const runtime = {
+  canInstall: false,
+  hasUpdate: false,
+  isStandalone: window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true,
+  waitingWorker: null
+};
 
 function loadState() {
   try {
@@ -222,6 +231,7 @@ function render() {
             <strong>${escapeHtml(active.label)}</strong>
           </div>
           <div class="topbar-actions">
+            ${renderPwaActions()}
             <span class="pill">${spicyEnabled() ? "Private mode ready" : "Private mode waiting"}</span>
             ${renderAvatars()}
           </div>
@@ -239,6 +249,20 @@ function render() {
       ${state.modal ? renderModal() : ""}
     </main>
   `;
+}
+
+function renderPwaActions() {
+  const actions = [];
+
+  if (runtime.hasUpdate) {
+    actions.push(button("Update", "refresh-app", icons.upload, "secondary small-button"));
+  }
+
+  if (runtime.canInstall && !runtime.isStandalone) {
+    actions.push(button("Install", "install-app", icons.upload, "secondary small-button install-button"));
+  }
+
+  return actions.join("");
 }
 
 function renderNavigation() {
@@ -840,6 +864,12 @@ function handleAction(action, value) {
     case "add-locked-note":
       addNote(true);
       break;
+    case "install-app":
+      installApp();
+      break;
+    case "refresh-app":
+      refreshApp();
+      break;
     default:
       break;
   }
@@ -922,5 +952,87 @@ document.addEventListener("change", (event) => {
   setState({ files: [...added, ...state.files] });
   showToast("Book added to Library.");
 });
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  runtime.canInstall = true;
+  render();
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  runtime.canInstall = false;
+  runtime.isStandalone = true;
+  showToast("AfterLife installed.");
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    registerServiceWorker();
+  });
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) {
+    showToast("Install will appear when the browser allows it.");
+    return;
+  }
+
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  runtime.canInstall = false;
+  render();
+
+  if (choice.outcome === "accepted") {
+    showToast("Install started.");
+  }
+}
+
+function refreshApp() {
+  if (!runtime.waitingWorker) {
+    location.reload();
+    return;
+  }
+
+  runtime.waitingWorker.postMessage({ type: "SKIP_WAITING" });
+}
+
+async function registerServiceWorker() {
+  try {
+    const registration = await navigator.serviceWorker.register("service-worker.js");
+
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      markUpdateReady(registration.waiting);
+    }
+
+    registration.addEventListener("updatefound", () => {
+      const newWorker = registration.installing;
+      if (!newWorker) return;
+
+      newWorker.addEventListener("statechange", () => {
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          markUpdateReady(newWorker);
+        }
+      });
+    });
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshingFromServiceWorker) return;
+      refreshingFromServiceWorker = true;
+      location.reload();
+    });
+  } catch {
+    // Local file access and some browser modes disable service workers.
+  }
+}
+
+function markUpdateReady(worker) {
+  runtime.waitingWorker = worker;
+  runtime.hasUpdate = true;
+  render();
+  showToast("A new version is ready.");
+}
 
 render();

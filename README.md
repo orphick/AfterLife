@@ -21,6 +21,7 @@ The static production files are written to `dist/`.
 ## What is included
 
 - Four primary tabs: Home, Together, Memories, Library
+- Installable PWA shell with offline app caching
 - One Glimpse composer with local app state
 - Shared activity hub and private opt-in deck
 - Memories wall, timeline, open-when letters, and vault

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="AfterLife">
+  <rect width="512" height="512" rx="112" fill="#211a1f"/>
+  <circle cx="171" cy="181" r="58" fill="#c85d73"/>
+  <circle cx="337" cy="181" r="58" fill="#6857d9"/>
+  <path fill="#fffaf6" d="M256 393c-74-47-128-95-128-156 0-34 24-59 58-59 28 0 48 16 70 47 22-31 42-47 70-47 34 0 58 25 58 59 0 61-54 109-128 156Z"/>
+  <path fill="#f6f7f8" d="M158 381h196v34H158z" opacity=".9"/>
+</svg>

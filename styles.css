@@ -180,6 +180,11 @@ p {
   gap: 12px;
 }
 
+.install-button {
+  color: var(--rose-dark);
+  background: #fae4e8;
+}
+
 .workspace-grid {
   min-height: 0;
   display: grid;
@@ -890,6 +895,10 @@ input[type="range"] {
   }
 
   .topbar-actions .pill {
+    display: none;
+  }
+
+  .install-button span {
     display: none;
   }
 
