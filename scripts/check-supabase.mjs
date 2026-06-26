@@ -136,15 +136,29 @@ async function readEnvFile(path) {
 
 async function request(path, init = {}) {
   const url = new URL(path, baseUrl);
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      apikey: anonKey,
-      authorization: `Bearer ${anonKey}`,
-      ...(init.body ? { "content-type": "application/json" } : {}),
-      ...(init.headers || {})
+  let response;
+  let lastError;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        ...init,
+        headers: {
+          apikey: anonKey,
+          authorization: `Bearer ${anonKey}`,
+          ...(init.body ? { "content-type": "application/json" } : {}),
+          ...(init.headers || {})
+        }
+      });
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt * 900));
     }
-  });
+  }
+
+  if (!response) throw lastError || new Error(`No response from ${url.href}`);
 
   return {
     ok: response.ok,
