@@ -32,7 +32,10 @@ npm.cmd run serve:api
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
 3. Copy `.env.example` to `.env.local`.
 4. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-5. Restart `npm.cmd run dev`.
+5. Run `npm.cmd run check:supabase`.
+6. Restart `npm.cmd run dev`.
+
+Detailed setup notes live in `supabase/README.md`.
 
 The first shared flow is:
 
@@ -50,6 +53,7 @@ npm.cmd run typecheck
 npm.cmd run build
 npm.cmd run check
 npm.cmd run check:api
+npm.cmd run check:supabase
 ```
 
 ## Deployment Notes

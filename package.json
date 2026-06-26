@@ -6,6 +6,7 @@
   "scripts": {
     "build": "vite build",
     "check:api": "node scripts/check-api.mjs",
+    "check:supabase": "node scripts/check-supabase.mjs",
     "dev": "vite",
     "preview": "vite preview",
     "serve:api": "node scripts/serve.mjs",
