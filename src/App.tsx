@@ -1,4 +1,3 @@
-import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -62,6 +61,7 @@ function App() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [spaceName, setSpaceName] = useState("Mo & Aysel");
   const [inviteDraft, setInviteDraft] = useState("");
@@ -378,16 +378,37 @@ function App() {
   }, [activeSpace, loadRemoteState]);
 
   const handleAuth = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+    async () => {
       if (!supabase) return;
 
-      setBusy(true);
+      setAuthMessage("");
       const credentials = {
         email: authEmail.trim(),
         password: authPassword
       };
 
+      if (!credentials.email || !credentials.password) {
+        const message = "Add your email and password.";
+        setAuthMessage(message);
+        showToast(message);
+        return;
+      }
+
+      if (!credentials.email.includes("@")) {
+        const message = "Use a valid email address.";
+        setAuthMessage(message);
+        showToast(message);
+        return;
+      }
+
+      if (credentials.password.length < 6) {
+        const message = "Password needs at least 6 characters.";
+        setAuthMessage(message);
+        showToast(message);
+        return;
+      }
+
+      setBusy(true);
       const result =
         authMode === "signup"
           ? await supabase.auth.signUp({
@@ -399,23 +420,27 @@ function App() {
       setBusy(false);
 
       if (result.error) {
+        setAuthMessage(result.error.message);
         showToast(result.error.message);
         return;
       }
 
       if (authMode === "signup" && !result.data.session) {
-        showToast("Check your email to finish sign up.");
+        const message = "Check your email to finish sign up.";
+        setAuthMessage(message);
+        showToast(message);
         return;
       }
 
-      showToast(authMode === "signup" ? "Account created." : "Signed in.");
+      const message = authMode === "signup" ? "Account created." : "Signed in.";
+      setAuthMessage(message);
+      showToast(message);
     },
     [authEmail, authMode, authPassword, displayName, showToast]
   );
 
   const handleLocalProfile = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+    async () => {
       const name = displayName.trim();
       if (!name) {
         showToast("Add your name first.");
@@ -439,9 +464,7 @@ function App() {
   );
 
   const createSpace = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
-
+    async () => {
       if (!isSupabaseConfigured) {
         setBusy(true);
         try {
@@ -482,8 +505,7 @@ function App() {
   );
 
   const joinSpace = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+    async () => {
       const inviteCode = normalizeInviteCode(inviteDraft);
 
       if (!isSupabaseConfigured) {
@@ -802,11 +824,15 @@ function App() {
     return (
       <AuthScreen
         authMode={authMode}
+        message={authMessage}
         busy={busy}
         displayName={displayName}
         email={authEmail}
         password={authPassword}
-        onAuthMode={setAuthMode}
+        onAuthMode={(mode) => {
+          setAuthMode(mode);
+          setAuthMessage("");
+        }}
         onDisplayName={setDisplayName}
         onEmail={setAuthEmail}
         onPassword={setAuthPassword}
@@ -935,7 +961,7 @@ function LocalProfileScreen({
   busy: boolean;
   displayName: string;
   onDisplayName: (value: string) => void;
-  onSubmit: (event: FormEvent) => void;
+  onSubmit: () => void;
 }) {
   return (
     <main className="auth-shell">
@@ -954,9 +980,15 @@ function LocalProfileScreen({
             <p>Create a local profile, make a couple space, copy the invite code, and test shared saving before Supabase goes online.</p>
           </div>
         </section>
-        <form className="form-grid" onSubmit={onSubmit}>
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onSubmit();
+          }}
+        >
           <Field label="Your name" value={displayName} autoFocus required onChange={(event) => onDisplayName(event.currentTarget.value)} />
-          <Button icon={UserPlus} disabled={busy} type="submit">
+          <Button icon={UserPlus} disabled={busy} type="button" onClick={() => void onSubmit()}>
             Continue
           </Button>
         </form>
@@ -967,6 +999,7 @@ function LocalProfileScreen({
 
 function AuthScreen({
   authMode,
+  message,
   busy,
   displayName,
   email,
@@ -978,6 +1011,7 @@ function AuthScreen({
   onSubmit
 }: {
   authMode: "signin" | "signup";
+  message: string;
   busy: boolean;
   displayName: string;
   email: string;
@@ -986,7 +1020,7 @@ function AuthScreen({
   onDisplayName: (value: string) => void;
   onEmail: (value: string) => void;
   onPassword: (value: string) => void;
-  onSubmit: (event: FormEvent) => void;
+  onSubmit: () => void;
 }) {
   return (
     <main className="auth-shell">
@@ -1006,7 +1040,24 @@ function AuthScreen({
             Create account
           </ChipButton>
         </div>
-        <form className="form-grid" onSubmit={onSubmit}>
+        {message ? (
+          <p className="form-note" role="status">
+            {message}
+          </p>
+        ) : null}
+        <form
+          className="form-grid"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onSubmit();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void onSubmit();
+            }
+          }}
+        >
           {authMode === "signup" ? (
             <Field label="Display name" value={displayName} onChange={(event) => onDisplayName(event.currentTarget.value)} />
           ) : null}
@@ -1020,7 +1071,7 @@ function AuthScreen({
             required
             onChange={(event) => onPassword(event.currentTarget.value)}
           />
-          <Button icon={KeyRound} disabled={busy} type="submit">
+          <Button icon={KeyRound} disabled={busy} type="button" onClick={() => void onSubmit()}>
             {busy ? "Working" : authMode === "signup" ? "Create account" : "Sign in"}
           </Button>
         </form>
@@ -1047,9 +1098,9 @@ function SpaceScreen({
   profile: UserProfile | null;
   spaceName: string;
   spaces: CoupleSpace[];
-  onCreate: (event: FormEvent) => void;
+  onCreate: () => void;
   onInviteDraft: (value: string) => void;
-  onJoin: (event: FormEvent) => void;
+  onJoin: () => void;
   onSelectSpace: (space: CoupleSpace) => void;
   onSignOut: () => void;
   onSpaceName: (value: string) => void;
@@ -1082,24 +1133,36 @@ function SpaceScreen({
         ) : null}
 
         <div className="setup-grid">
-          <form className="panel" onSubmit={onCreate}>
+          <form
+            className="panel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void onCreate();
+            }}
+          >
             <div className="panel-heading">
               <span className="meta">Create</span>
               <strong>Start a private space</strong>
             </div>
             <Field label="Space name" value={spaceName} onChange={(event) => onSpaceName(event.currentTarget.value)} />
-            <Button icon={UserPlus} disabled={busy} type="submit">
+            <Button icon={UserPlus} disabled={busy} type="button" onClick={() => void onCreate()}>
               Create space
             </Button>
           </form>
 
-          <form className="panel" onSubmit={onJoin}>
+          <form
+            className="panel"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void onJoin();
+            }}
+          >
             <div className="panel-heading">
               <span className="meta">Join</span>
               <strong>Use an invite code</strong>
             </div>
             <Field label="Invite code" value={inviteDraft} onChange={(event) => onInviteDraft(event.currentTarget.value)} />
-            <Button icon={Copy} variant="secondary" disabled={busy} type="submit">
+            <Button icon={Copy} variant="secondary" disabled={busy} type="button" onClick={() => void onJoin()}>
               Join space
             </Button>
           </form>

@@ -910,6 +910,17 @@ input[type="range"] {
   gap: 12px;
 }
 
+.form-note {
+  margin: 0;
+  padding: 10px 12px;
+  color: #6a3846;
+  background: #fae4e8;
+  border: 1px solid #efc8d0;
+  border-radius: var(--radius);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .local-mode-card {
   display: flex;
   gap: 12px;
