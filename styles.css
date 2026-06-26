@@ -185,6 +185,11 @@ p {
   background: #fae4e8;
 }
 
+.invite-topbar-button {
+  color: #165f51;
+  background: #e6f5f0;
+}
+
 .workspace-grid {
   min-height: 0;
   display: grid;
@@ -632,6 +637,12 @@ p {
   font-weight: 800;
 }
 
+.mini-list em {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-style: normal;
+}
+
 .stack-list,
 .timeline {
   display: grid;
@@ -645,6 +656,25 @@ p {
   align-items: center;
   gap: 12px;
   padding: 14px;
+}
+
+.empty-state {
+  display: grid;
+  gap: 4px;
+  padding: 18px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px dashed #d8cfcb;
+  border-radius: var(--radius);
+}
+
+.empty-state strong {
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.empty-state p {
+  margin: 0;
 }
 
 .list-card p {
@@ -1115,6 +1145,10 @@ input[type="range"] {
   }
 
   .install-button span {
+    display: none;
+  }
+
+  .invite-topbar-button span {
     display: none;
   }
 

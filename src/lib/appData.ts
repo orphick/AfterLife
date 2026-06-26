@@ -83,86 +83,23 @@ export const defaultState: AppState = {
   activeActivity: "read",
   mood: "Need comfort",
   glimpseKind: "Photo",
-  spicy: { mo: true, aysel: true },
-  boundary: "Flirty",
+  spicy: { mo: false, aysel: false },
+  boundary: "Soft",
   memoriesView: "wall",
   libraryView: "ours",
-  readingProgress: 42,
+  readingProgress: 0,
   readerNight: false,
   toast: "",
   modal: null,
   questionMode: "soft",
   questionDraft: "",
-  glimpseCaption: "This made me think of you.",
+  glimpseCaption: "",
   listDraft: "",
   noteDraft: "",
-  files: [
-    {
-      id: "letters",
-      type: "PDF",
-      title: "Letters from...",
-      progress: 42,
-      meta: "2 locked notes, 4 shared highlights"
-    },
-    {
-      id: "night",
-      type: "EPUB",
-      title: "Night Chapters",
-      progress: 18,
-      meta: "Font size, chapters, progress"
-    }
-  ],
-  memories: [
-    {
-      id: "m1",
-      kind: "glimpse",
-      title: "One Glimpse saved",
-      body: "Look at the sky here.",
-      private: false
-    },
-    {
-      id: "m2",
-      kind: "reading",
-      title: "Shared highlight",
-      body: "You both highlighted the same line.",
-      private: false
-    },
-    {
-      id: "m3",
-      kind: "voice",
-      title: "Replayable voice note",
-      body: "Saved from Today.",
-      private: false
-    },
-    {
-      id: "m4",
-      kind: "letter",
-      title: "Open when you cannot sleep",
-      body: "Voice note recommended.",
-      private: false
-    },
-    {
-      id: "m5",
-      kind: "vault",
-      title: "Private vault item",
-      body: "Locked, hidden by default, deletable by either person.",
-      private: true
-    }
-  ],
-  listItems: [
-    "Movies to watch",
-    "Books / PDFs to read",
-    "Places to go",
-    "Food to try",
-    "When we meet",
-    "Inside jokes",
-    "Gift ideas",
-    "Private wishlist"
-  ],
-  notes: [
-    { id: "n1", page: "p.21", body: "This line reminded me of you.", locked: false },
-    { id: "n2", page: "p.24", body: "Locked note for the end of the chapter.", locked: true }
-  ]
+  files: [],
+  memories: [],
+  listItems: [],
+  notes: []
 };
 
 export const boundaryChecklist = [

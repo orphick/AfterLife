@@ -38,16 +38,22 @@ function spicyEnabled(state: AppState) {
 }
 
 export function HomeView({ state, actions }: ViewProps) {
+  const latestMemory = state.memories[0];
+  const activeFile = state.files[0];
+  const sharedCount = state.memories.filter((memory) => !memory.private).length;
+  const privateCount = state.memories.filter((memory) => memory.private).length;
+  const glimpseLabel = state.glimpseCaption ? `${state.glimpseKind} ready` : `Write a ${state.glimpseKind.toLowerCase()} glimpse`;
+
   return (
     <>
       <ViewHeader eyebrow="Private home" title="Mo & Aysel" right={<Avatars />} />
       <section className="presence-card">
         <div>
-          <span className="meta">Now with you</span>
-          <strong>Aysel is reading your note</strong>
-          <p>Soft presence only. No last seen, no pressure counter.</p>
+          <span className="meta">{latestMemory ? "Latest shared moment" : "Start here"}</span>
+          <strong>{latestMemory ? latestMemory.title : "Create the first real memory together"}</strong>
+          <p>{latestMemory ? (latestMemory.private ? "Private preview hidden." : latestMemory.body) : "Save a glimpse, answer, list idea, or reading note. No last seen, no pressure counter."}</p>
         </div>
-        <span className="pill">soft</span>
+        <span className="pill">{state.mood}</span>
       </section>
 
       <section className="metric-grid" aria-label="Today">
@@ -55,14 +61,21 @@ export function HomeView({ state, actions }: ViewProps) {
           <IconBox icon={Send} />
           <div>
             <strong>One Glimpse</strong>
-            <p>{state.glimpseKind} ready</p>
+            <p>{glimpseLabel}</p>
           </div>
         </article>
         <article className="metric-card">
-          <span className="number">17</span>
+          <span className="number">{sharedCount}</span>
           <div>
-            <strong>Days left</strong>
-            <p>Next visit</p>
+            <strong>Shared memories</strong>
+            <p>{privateCount ? `${privateCount} private item${privateCount === 1 ? "" : "s"} in vault` : "Vault is empty"}</p>
+          </div>
+        </article>
+        <article className="metric-card">
+          <IconBox icon={BookOpen} />
+          <div>
+            <strong>{activeFile ? activeFile.title : "No book uploaded"}</strong>
+            <p>{activeFile ? `${activeFile.progress}% shared reading progress` : "Upload a PDF or EPUB in Library"}</p>
           </div>
         </article>
       </section>
@@ -114,7 +127,7 @@ export function HomeView({ state, actions }: ViewProps) {
       <section className="panel">
         <div className="panel-heading">
           <span className="meta">Glimpse composer</span>
-          <strong>{state.glimpseCaption}</strong>
+          <strong>{state.glimpseCaption || "Write something small to send today"}</strong>
         </div>
         <div className="chip-row">
           {glimpseKinds.map((kind: GlimpseKind) => (
@@ -156,10 +169,10 @@ export function HomeView({ state, actions }: ViewProps) {
       <section className="panel accent-panel">
         <div className="panel-heading">
           <span className="meta">Current shared activity</span>
-          <strong>Reading: Letters from...</strong>
+          <strong>{activeFile ? `Reading: ${activeFile.title}` : activities[state.activeActivity].title}</strong>
         </div>
         <Progress value={state.readingProgress} />
-        <p>You {state.readingProgress}% - Aysel p.18 - 2 locked notes waiting</p>
+        <p>{activeFile ? `${state.readingProgress}% synced for this space.` : "Pick an activity or upload reading material to make this real."}</p>
       </section>
     </>
   );
@@ -278,9 +291,13 @@ export function TogetherView({ state, actions }: ViewProps) {
           </Button>
         </div>
         <div className="mini-list">
-          {state.listItems.slice(0, 5).map((item) => (
-            <span key={item}>{item}</span>
-          ))}
+          {state.listItems.length ? (
+            state.listItems.slice(0, 5).map((item) => (
+              <span key={item}>{item}</span>
+            ))
+          ) : (
+            <em>No ideas yet. Add the first movie, food, book, or visit plan.</em>
+          )}
         </div>
       </section>
     </>
@@ -329,28 +346,25 @@ function renderMemoryView(state: AppState, actions: ViewActions) {
   if (state.memoriesView === "timeline") {
     return (
       <section className="timeline">
-        {state.memories.map((memory, index) => (
-          <article className="timeline-item" key={memory.id}>
-            <span>{String(index + 1).padStart(2, "0")}</span>
-            <div>
-              <strong>{memory.title}</strong>
-              <p>{memory.private ? "Private memory, preview hidden." : memory.body}</p>
-            </div>
-          </article>
-        ))}
+        {state.memories.length ? (
+          state.memories.map((memory, index) => (
+            <article className="timeline-item" key={memory.id}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <div>
+                <strong>{memory.title}</strong>
+                <p>{memory.private ? "Private memory, preview hidden." : memory.body}</p>
+              </div>
+            </article>
+          ))
+        ) : (
+          <EmptyState title="Timeline is empty" body="Saved glimpses, notes, and letters will appear here in order." />
+        )}
       </section>
     );
   }
 
   if (state.memoriesView === "letters") {
-    const letters = [
-      ["You miss me", "Available anytime"],
-      ["You are mad at me", "Repair note, not a debate"],
-      ["You cannot sleep", "Voice note recommended"],
-      ["You feel insecure", "Reassurance without asking"],
-      ["You need to laugh", "Private jokes and photos"],
-      ["You want me", "Private mode only"]
-    ];
+    const letters = state.memories.filter((item) => item.kind === "letter");
     return (
       <>
         <section className="panel warm-panel">
@@ -358,11 +372,18 @@ function renderMemoryView(state: AppState, actions: ViewActions) {
             <span className="meta">Open when</span>
             <strong>Letters for specific moments</strong>
           </div>
+          <div className="button-row">
+            <Button icon={StickyNote} onClick={() => actions.addMemory("Open when you miss me", "Write the first letter body here.", false, "letter")}>
+              New letter
+            </Button>
+          </div>
         </section>
         <section className="stack-list">
-          {letters.map(([title, body]) => (
-            <ListItem key={title} title={title} body={body} icon={title.includes("want") ? Lock : StickyNote} />
-          ))}
+          {letters.length ? (
+            letters.map((letter) => <MemoryCard key={letter.id} memory={letter} actions={actions} />)
+          ) : (
+            <EmptyState title="No letters yet" body="Create an open-when letter and it will sync into this shared space." />
+          )}
         </section>
       </>
     );
@@ -411,9 +432,13 @@ function renderMemoryView(state: AppState, actions: ViewActions) {
         </div>
       </section>
       <section className="stack-list">
-        {state.memories.map((memory) => (
-          <MemoryCard key={memory.id} memory={memory} actions={actions} />
-        ))}
+        {state.memories.length ? (
+          state.memories.map((memory) => (
+            <MemoryCard key={memory.id} memory={memory} actions={actions} />
+          ))
+        ) : (
+          <EmptyState title="No memories yet" body="Use Save, send a glimpse, answer a question, or add a reading note." />
+        )}
       </section>
     </>
   );
@@ -446,7 +471,18 @@ function ListItem({ title, body, icon: Icon }: { title: string; body: string; ic
   );
 }
 
+function EmptyState({ title, body }: { title: string; body: string }) {
+  return (
+    <article className="empty-state">
+      <strong>{title}</strong>
+      <p>{body}</p>
+    </article>
+  );
+}
+
 export function LibraryView({ state, actions }: ViewProps) {
+  const activeFile = state.files[0];
+
   return (
     <>
       <ViewHeader
@@ -494,42 +530,55 @@ export function LibraryView({ state, actions }: ViewProps) {
       </section>
 
       <section className="stack-list">
-        {state.files.map((file: LibraryFile) => (
-          <article className="list-card file-card" key={file.id}>
-            <IconBox icon={BookOpen} />
-            <div>
-              <strong>
-                {file.type}: {file.title}
-              </strong>
-              <p>{file.meta}</p>
-              <Progress value={file.progress} />
-            </div>
-          </article>
-        ))}
+        {state.files.length ? (
+          state.files.map((file: LibraryFile) => (
+            <article className="list-card file-card" key={file.id}>
+              <IconBox icon={BookOpen} />
+              <div>
+                <strong>
+                  {file.type}: {file.title}
+                </strong>
+                <p>{file.meta}</p>
+                <Progress value={file.progress} />
+              </div>
+            </article>
+          ))
+        ) : (
+          <EmptyState title="No shared books yet" body="Upload a PDF or EPUB and it will become a synced reading item for both accounts." />
+        )}
       </section>
 
       <section className={`reader-card ${state.readerNight ? "is-night" : ""}`}>
         <div className="reader-toolbar">
           <div>
             <span className="meta">Reading together</span>
-            <strong>Letters from...</strong>
+            <strong>{activeFile ? activeFile.title : "Choose something to read together"}</strong>
           </div>
           <Button icon={Moon} variant="secondary" small onClick={() => actions.updateState({ readerNight: !state.readerNight })}>
             {state.readerNight ? "Day" : "Night"}
           </Button>
         </div>
-        <p>She read the sentence twice, because it felt like it had been written for someone far away.</p>
-        <p>
-          The room was quiet, but the words made it less empty. <mark>This line reminded me of you.</mark>
-        </p>
-        <p>Somewhere between the page and the silence, she understood that distance was not the absence of love.</p>
+        {activeFile ? (
+          <>
+            <p>Use this space for highlights, page progress, and notes while the real reader gets deeper.</p>
+            <p>
+              Current progress: <mark>{activeFile.progress}%</mark>
+            </p>
+          </>
+        ) : (
+          <p>Upload the first book above, then add notes from either account. Locked notes stay out of casual previews.</p>
+        )}
         <div className="note-rail">
-          {state.notes.map((note) => (
-            <span className={note.locked ? "is-locked" : ""} key={note.id}>
-              {note.locked ? <Lock aria-hidden="true" /> : <StickyNote aria-hidden="true" />}
-              {note.page}
-            </span>
-          ))}
+          {state.notes.length ? (
+            state.notes.map((note) => (
+              <span className={note.locked ? "is-locked" : ""} key={note.id}>
+                {note.locked ? <Lock aria-hidden="true" /> : <StickyNote aria-hidden="true" />}
+                {note.page}
+              </span>
+            ))
+          ) : (
+            <span>No notes yet</span>
+          )}
         </div>
       </section>
 
@@ -639,10 +688,10 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
     <>
       <div className="context-kicker">One glimpse</div>
       <h2>A private long-distance home</h2>
-      <p>Daily glimpse, soft presence, countdowns, shared activities, private memories, and reading together.</p>
+      <p>{state.memories.length ? `${state.memories.length} saved moment${state.memories.length === 1 ? "" : "s"} in this space.` : "Daily glimpse, shared activities, private memories, and reading together."}</p>
       <div className="visual-card" aria-label="Today glimpse visual">
-        <span>Today, 21:44</span>
-        <strong>Look at the sky here.</strong>
+        <span>{state.glimpseKind}</span>
+        <strong>{state.glimpseCaption || "Write the first glimpse."}</strong>
       </div>
       {inviteCode ? (
         <button className="invite-chip" type="button" onClick={actions.copyInvite}>

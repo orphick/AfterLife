@@ -963,6 +963,11 @@ function App() {
                 Install
               </Button>
             ) : null}
+            {activeSpace?.inviteCode ? (
+              <Button icon={Copy} variant="secondary" small className="invite-topbar-button" onClick={() => void copyInvite()}>
+                Invite
+              </Button>
+            ) : null}
             <span className="pill">{state.spicy.mo && state.spicy.aysel ? "Private mode ready" : "Private mode waiting"}</span>
             <Avatars />
             <button className="icon-button" type="button" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>
