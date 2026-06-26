@@ -28,6 +28,7 @@ export function mergeState(saved: Partial<AppState> | null | undefined): AppStat
     memoryKindDraft: saved.memoryKindDraft || base.memoryKindDraft,
     memoryPrivateDraft: Boolean(saved.memoryPrivateDraft),
     memoryEditingId: "",
+    activityPlanDraft: saved.activityPlanDraft || "",
     notePageDraft: saved.notePageDraft || ""
   };
 }

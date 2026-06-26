@@ -535,6 +535,7 @@ p {
 }
 
 .field input,
+.field textarea,
 .modal textarea {
   width: 100%;
   color: var(--ink);
@@ -549,10 +550,31 @@ p {
   padding: 0 12px;
 }
 
+.field textarea {
+  min-height: 112px;
+  padding: 12px;
+  resize: vertical;
+}
+
 .field input:focus,
+.field textarea:focus,
 .modal textarea:focus {
   border-color: var(--rose);
   box-shadow: 0 0 0 3px rgba(200, 93, 115, 0.14);
+}
+
+.dark-field span {
+  color: #ead7dd;
+}
+
+.dark-field textarea {
+  color: #fffaf8;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.dark-field textarea::placeholder {
+  color: rgba(255, 250, 248, 0.62);
 }
 
 .progress {

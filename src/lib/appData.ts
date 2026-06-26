@@ -99,6 +99,7 @@ export const defaultState: AppState = {
   memoryPrivateDraft: false,
   memoryEditingId: "",
   glimpseCaption: "",
+  activityPlanDraft: "",
   listDraft: "",
   notePageDraft: "",
   noteDraft: "",

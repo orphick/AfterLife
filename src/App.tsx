@@ -16,7 +16,7 @@ import {
   UserPlus,
   WifiOff
 } from "lucide-react";
-import { tabs } from "./lib/appData";
+import { activities, tabs } from "./lib/appData";
 import { generateInviteCode, normalizeInviteCode } from "./lib/invite";
 import {
   bootstrapLocal,
@@ -924,6 +924,22 @@ function App() {
     [addMemory, showToast, state.questionDraft, updateState]
   );
 
+  const saveActivityPlan = useCallback(async () => {
+    const body = state.activityPlanDraft.trim();
+    if (!body) {
+      showToast("Write the plan first.");
+      return;
+    }
+
+    const active = activities[state.activeActivity] || activities.read;
+    await addMemory(`Plan: ${active.title}`, body, false, "plan");
+    updateState({
+      activityPlanDraft: "",
+      activeTab: "together"
+    });
+    showToast("Plan saved.");
+  }, [addMemory, showToast, state.activeActivity, state.activityPlanDraft, updateState]);
+
   const saveMemoryDraft = useCallback(async () => {
     const title = state.memoryTitleDraft.trim();
     const body = state.memoryBodyDraft.trim();
@@ -1021,13 +1037,14 @@ function App() {
       updateFileProgress,
       openLibraryFile,
       deleteLibraryFile,
+      saveActivityPlan,
       saveMemoryDraft,
       saveAnswer,
       uploadFiles,
       showToast,
       copyInvite
     }),
-    [addListItem, addMemory, addNote, copyInvite, deleteLibraryFile, deleteListItem, deleteMemory, deleteNote, editMemory, openLibraryFile, saveAnswer, saveMemoryDraft, showToast, updateFileProgress, updateState, uploadFiles]
+    [addListItem, addMemory, addNote, copyInvite, deleteLibraryFile, deleteListItem, deleteMemory, deleteNote, editMemory, openLibraryFile, saveActivityPlan, saveAnswer, saveMemoryDraft, showToast, updateFileProgress, updateState, uploadFiles]
   );
 
   function updateLocalList(updater: (current: AppState) => AppState) {

@@ -29,6 +29,7 @@ export interface ViewActions {
   updateFileProgress: (file: LibraryFile, progress: number) => Promise<void>;
   openLibraryFile: (file: LibraryFile) => Promise<void>;
   deleteLibraryFile: (file: LibraryFile) => Promise<void>;
+  saveActivityPlan: () => Promise<void>;
   saveMemoryDraft: () => Promise<void>;
   saveAnswer: (isPrivate: boolean) => Promise<void>;
   uploadFiles: (files: FileList) => Promise<void>;
@@ -197,6 +198,7 @@ export function HomeView({ state, actions }: ViewProps) {
 
 export function TogetherView({ state, actions }: ViewProps) {
   const active = activities[state.activeActivity] || activities.read;
+  const recentPlans = state.memories.filter((memory) => memory.kind === "plan").slice(0, 3);
 
   return (
     <>
@@ -231,7 +233,38 @@ export function TogetherView({ state, actions }: ViewProps) {
             <span className="label-chip" key={item}>{item}</span>
           ))}
         </div>
+        <label className="field dark-field">
+          <span>Actual plan</span>
+          <textarea
+            value={state.activityPlanDraft}
+            maxLength={420}
+            placeholder="Write what you two will actually do, when, and what counts as done"
+            onChange={(event) => actions.updateState({ activityPlanDraft: event.currentTarget.value })}
+          />
+        </label>
+        <div className="button-row">
+          <Button icon={StickyNote} onClick={actions.saveActivityPlan}>
+            Save plan
+          </Button>
+          <Button icon={Plus} variant="secondary" onClick={() => actions.updateState({ activityPlanDraft: active.copy })}>
+            Use prompt
+          </Button>
+        </div>
       </section>
+
+      {recentPlans.length ? (
+        <section className="panel">
+          <div className="panel-heading">
+            <span className="meta">Recent plans</span>
+            <strong>{recentPlans.length} saved</strong>
+          </div>
+          <div className="stack-list">
+            {recentPlans.map((plan) => (
+              <MemoryCard key={plan.id} memory={plan} actions={actions} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="panel">
         <div className="panel-heading">
@@ -309,7 +342,7 @@ export function TogetherView({ state, actions }: ViewProps) {
         </div>
         <div className="mini-list">
           {state.listItems.length ? (
-            state.listItems.slice(0, 5).map((item, index) => (
+            state.listItems.map((item, index) => (
               <span className="mini-list-item" key={`${item}-${index}`}>
                 {item}
                 <button type="button" title="Remove idea" aria-label={`Remove ${item}`} onClick={() => void actions.deleteListItem(item, index)}>
@@ -716,7 +749,7 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
         <p>{active.copy}</p>
         <BoundaryChecklist />
         <div className="context-actions">
-          <Button icon={actionIcons.book} onClick={() => actions.addMemory("Tonight's plan", active.title, false, "plan")}>
+          <Button icon={actionIcons.book} onClick={actions.saveActivityPlan}>
             Save to memories
           </Button>
           <Button icon={actionIcons.book} variant="secondary" onClick={() => actions.updateState({ activeTab: "library" })}>
