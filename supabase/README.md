@@ -11,9 +11,12 @@ Open Supabase SQL Editor, create a new query, paste `supabase/schema.sql`, and r
 This creates:
 
 - Auth-owned profiles
-- Couple spaces and invite-code joining
+- Couple spaces, invite-code joining, invite rotation, and owner-only smoke cleanup
 - Space membership
-- Shared memories, lists, reading items, progress, and notes
+- Shared memories, lists, reading items, progress, notes, media assets, and space events
+- A private `afterlife-media` Supabase Storage bucket for PDFs, EPUBs, images, audio, and future media
+- Consistency triggers so list items, reading notes, progress rows, and media assets cannot point across spaces
+- Server-side creator/uploader stamping for user-owned rows
 - RLS policies so users only access spaces they belong to
 - Realtime publication entries for shared tables
 
@@ -47,7 +50,7 @@ Run:
 npm.cmd run check:supabase
 ```
 
-This verifies the auth endpoint, table access shape, and that couple-space RPCs reject anonymous calls.
+This verifies the auth endpoint, table access shape, and that protected RPCs reject anonymous calls.
 
 Then start the app:
 
@@ -62,6 +65,7 @@ Test with two accounts:
 3. Aysel signs up or signs in.
 4. Aysel joins with the invite code.
 5. Save a memory from one account and confirm it appears in the other.
+6. Upload a PDF or EPUB in Library and confirm it creates a storage-backed reading item.
 
 For a repeatable command-line smoke test, create or confirm two Supabase Auth accounts, add these values to `.env.local`, and run `npm.cmd run smoke:supabase`:
 
@@ -78,6 +82,8 @@ Optional third-account RLS check:
 AFTERLIFE_SMOKE_OUTSIDER_EMAIL=outsider@example.com
 AFTERLIFE_SMOKE_OUTSIDER_PASSWORD=your-password
 ```
+
+The smoke test creates and deletes its own couple space. It also uploads and removes a tiny storage object in the `afterlife-media` bucket.
 
 ## Production Notes
 

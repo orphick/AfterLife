@@ -18,10 +18,20 @@ const requiredTables = [
   "list_items",
   "reading_items",
   "reading_progress",
-  "reading_notes"
+  "reading_notes",
+  "media_assets",
+  "space_events"
 ];
 
 const protectedRpcs = [
+  {
+    name: "bootstrap_profile",
+    body: { display_name_input: "Smoke Profile" }
+  },
+  {
+    name: "get_my_spaces",
+    body: {}
+  },
   {
     name: "create_couple_space",
     body: { space_name: "AfterLife smoke test", invite_code_input: "SMOKE123" }
@@ -29,6 +39,22 @@ const protectedRpcs = [
   {
     name: "join_couple_space",
     body: { invite_code_input: "SMOKE123" }
+  },
+  {
+    name: "rotate_space_invite",
+    body: { target_space_id: "00000000-0000-0000-0000-000000000000" }
+  },
+  {
+    name: "record_space_event",
+    body: {
+      target_space_id: "00000000-0000-0000-0000-000000000000",
+      event_kind: "smoke.unauthenticated",
+      event_payload: {}
+    }
+  },
+  {
+    name: "delete_couple_space",
+    body: { target_space_id: "00000000-0000-0000-0000-000000000000" }
   }
 ];
 

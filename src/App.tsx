@@ -49,6 +49,8 @@ const syncedPreferenceKeys = new Set<keyof AppState>([
   "glimpseCaption"
 ]);
 
+const MEDIA_BUCKET = "afterlife-media";
+
 function App() {
   const [localClientId] = useState(() => getLocalClientId());
   const [state, setState] = useState<AppState>(() => readLocalState());
@@ -202,20 +204,22 @@ function App() {
         email.split("@")[0] ||
         "AfterLife user";
 
-      await supabase.from("profiles").upsert({
+      const profileResult = await supabase.rpc("bootstrap_profile", { display_name_input: name });
+
+      if (profileResult.error) {
+        setSyncStatus("error");
+        showToast("Run the latest Supabase schema, then refresh.");
+        return;
+      }
+
+      const remoteProfile: any = profileResult.data;
+      setProfile({
         id: session.user.id,
-        email,
-        display_name: name,
-        updated_at: new Date().toISOString()
+        email: remoteProfile?.email || email,
+        displayName: remoteProfile?.display_name || name
       });
 
-      setProfile({ id: session.user.id, email, displayName: name });
-
-      const { data, error } = await supabase
-        .from("space_members")
-        .select("role,couple_spaces(id,name,invite_code)")
-        .eq("user_id", session.user.id)
-        .order("joined_at", { ascending: true });
+      const { data, error } = await supabase.rpc("get_my_spaces");
 
       if (error) {
         setSyncStatus("error");
@@ -223,16 +227,12 @@ function App() {
         return;
       }
 
-      const nextSpaces: CoupleSpace[] = (data || []).flatMap((row: any) => {
-          const space = Array.isArray(row.couple_spaces) ? row.couple_spaces[0] : row.couple_spaces;
-          if (!space) return [];
-          return [{
-            id: space.id,
-            name: space.name,
-            inviteCode: space.invite_code,
-            role: row.role === "owner" ? "owner" : "partner"
-          } satisfies CoupleSpace];
-        });
+      const nextSpaces: CoupleSpace[] = (data || []).map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        inviteCode: row.invite_code,
+        role: row.role === "owner" ? "owner" : "partner"
+      }));
 
       setSpaces(nextSpaces);
       setActiveSpace((current) => {
@@ -699,6 +699,76 @@ function App() {
 
   const uploadFiles = useCallback(
     async (files: FileList) => {
+      if (supabase && activeSpace && activeSpace.role !== "local") {
+        setSyncStatus("saving");
+
+        const uploaded: LibraryFile[] = [];
+        for (const file of [...files]) {
+          const fileType = file.name.toLowerCase().endsWith(".epub") ? "EPUB" : "PDF";
+          const title = file.name.replace(/\.(pdf|epub)$/i, "");
+          const storagePath = `${activeSpace.id}/library/${Date.now()}-${sanitizeStorageName(file.name)}`;
+          const mimeType = file.type || (fileType === "EPUB" ? "application/epub+zip" : "application/pdf");
+
+          const uploadResult = await supabase.storage.from(MEDIA_BUCKET).upload(storagePath, file, {
+            contentType: mimeType,
+            upsert: false
+          });
+
+          if (uploadResult.error) {
+            setSyncStatus("error");
+            showToast(uploadResult.error.message || "Book file did not upload.");
+            return;
+          }
+
+          const { data, error } = await supabase
+            .from("reading_items")
+            .insert({
+              space_id: activeSpace.id,
+              created_by: session?.user.id,
+              file_type: fileType,
+              title,
+              progress: 0,
+              meta: "Uploaded online, ready for notes",
+              storage_path: storagePath
+            })
+            .select("*")
+            .single();
+
+          if (error) {
+            await supabase.storage.from(MEDIA_BUCKET).remove([storagePath]);
+            setSyncStatus("error");
+            showToast("Reading item did not sync.");
+            return;
+          }
+
+          const assetResult = await supabase.from("media_assets").insert({
+            space_id: activeSpace.id,
+            uploaded_by: session?.user.id,
+            reading_item_id: data.id,
+            bucket_id: MEDIA_BUCKET,
+            storage_path: storagePath,
+            file_name: file.name,
+            mime_type: mimeType,
+            byte_size: file.size,
+            asset_kind: "book",
+            is_private: false
+          });
+
+          if (assetResult.error) {
+            setSyncStatus("error");
+            showToast("Book uploaded, but media record did not sync.");
+            return;
+          }
+
+          uploaded.push(mapReadingItemRow(data));
+        }
+
+        updateState({ files: [...uploaded, ...state.files] });
+        setSyncStatus("saved");
+        showToast(uploaded.length === 1 ? "Book uploaded." : "Books uploaded.");
+        return;
+      }
+
       const added: LibraryFile[] = [...files].map((file) => ({
         id: `f${Date.now()}-${file.name}`,
         type: file.name.toLowerCase().endsWith(".epub") ? "EPUB" : "PDF",
@@ -706,24 +776,6 @@ function App() {
         progress: 0,
         meta: "Uploaded locally, ready for notes"
       }));
-
-      if (supabase && activeSpace && activeSpace.role !== "local") {
-        setSyncStatus("saving");
-        const rows = added.map((file) => ({
-          space_id: activeSpace.id,
-          created_by: session?.user.id,
-          file_type: file.type,
-          title: file.title,
-          progress: 0,
-          meta: file.meta
-        }));
-        const { error } = await supabase.from("reading_items").insert(rows);
-        setSyncStatus(error ? "error" : "saved");
-        if (error) {
-          showToast("Reading item did not sync.");
-          return;
-        }
-      }
 
       updateState({ files: [...added, ...state.files] });
       showToast("Book added to Library.");
@@ -1244,6 +1296,17 @@ function mapMemoryRow(row: any): MemoryItem {
   };
 }
 
+function sanitizeStorageName(name: string) {
+  return name
+    .trim()
+    .replace(/\\/g, "/")
+    .split("/")
+    .pop()
+    ?.replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 90) || `upload-${Date.now()}`;
+}
+
 function mapReadingItemRow(row: any): LibraryFile {
   return {
     id: `remote-file-${row.id}`,
@@ -1251,7 +1314,8 @@ function mapReadingItemRow(row: any): LibraryFile {
     type: row.file_type === "EPUB" ? "EPUB" : "PDF",
     title: row.title || "Reading item",
     progress: Number(row.progress || 0),
-    meta: row.meta || "Shared reading item"
+    meta: row.meta || "Shared reading item",
+    storagePath: row.storage_path || undefined
   };
 }
 

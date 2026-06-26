@@ -17,7 +17,7 @@ The local flow is:
 - Create a couple space.
 - Copy the invite code from the Home context panel.
 - Use another browser profile/session to enter a different name and join with that code.
-- Memories, list ideas, reading notes, uploads metadata, and shared preferences save into `data/afterlife.local.json`.
+- Memories, list ideas, reading notes, upload metadata, and shared preferences save into `data/afterlife.local.json`.
 
 The older static build JSON API bridge is still available after a build:
 
@@ -37,13 +37,21 @@ npm.cmd run serve:api
 
 Detailed setup notes live in `supabase/README.md`.
 
+The Supabase schema includes the main production backend pieces:
+
+- Auth-owned profiles and couple-space membership
+- Two-person invite flow with server-side validation and invite rotation
+- Shared preferences, memories, lists, reading items, notes, media assets, and audit events
+- Private Supabase Storage bucket for PDFs, EPUBs, images, voice notes, and future media
+- RLS policies and backend triggers so users only access spaces they belong to and creator/uploader fields are stamped server-side
+
 The first shared flow is:
 
 - Sign up or sign in.
 - Create a couple space.
 - Copy the invite code.
 - Sign in as the second user and join with the code.
-- Memories, list ideas, reading notes, and preferences sync between both users.
+- Memories, list ideas, reading notes, uploaded Library files, and preferences sync between both users.
 
 For a full backend smoke test with two existing Supabase Auth accounts, add the optional `AFTERLIFE_SMOKE_*` values from `.env.example`, then run:
 
@@ -51,7 +59,7 @@ For a full backend smoke test with two existing Supabase Auth accounts, add the 
 npm.cmd run smoke:supabase
 ```
 
-That test signs both accounts in, creates a real couple space, joins by invite code, verifies shared memory/list/preference access, and optionally checks that a third non-member account cannot read the space.
+That test signs both accounts in, creates a real couple space, joins by invite code, verifies shared memory/list/preference/media/event access, uploads a tiny storage-backed PDF, rotates the invite, optionally checks that a third non-member account cannot join/read, then deletes the smoke space.
 
 ## Scripts
 

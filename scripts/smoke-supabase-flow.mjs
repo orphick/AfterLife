@@ -18,6 +18,7 @@ const partnerEmail = clean(env.AFTERLIFE_SMOKE_EMAIL_2);
 const partnerPassword = clean(env.AFTERLIFE_SMOKE_PASSWORD_2);
 const outsiderEmail = clean(env.AFTERLIFE_SMOKE_OUTSIDER_EMAIL);
 const outsiderPassword = clean(env.AFTERLIFE_SMOKE_OUTSIDER_PASSWORD);
+const mediaBucket = "afterlife-media";
 
 if (!supabaseUrl || !anonKey || supabaseUrl.includes("your-project-ref") || anonKey.includes("your-supabase")) {
   fail("Supabase env is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local.");
@@ -35,8 +36,8 @@ if (ownerUser.id === partnerUser.id) {
   fail("Smoke test needs two different Supabase Auth users.");
 }
 
-await upsertProfile(owner, ownerUser, "Smoke Owner");
-await upsertProfile(partner, partnerUser, "Smoke Partner");
+await bootstrapProfile(owner, "Smoke Owner");
+await bootstrapProfile(partner, "Smoke Partner");
 
 const inviteCode = `SMK${Date.now().toString(36).toUpperCase()}`;
 const spaceName = `AfterLife smoke ${new Date().toISOString()}`;
@@ -52,9 +53,21 @@ const spaceId = created.id;
 if (!spaceId) fail("create_couple_space did not return a space id.");
 console.log(`ok owner created space ${spaceId}`);
 
+const ownerSpacesAfterCreate = await must(owner.rpc("get_my_spaces"), "owner can list own spaces");
+if (!ownerSpacesAfterCreate.some((space) => space.id === spaceId && space.role === "owner")) {
+  fail("owner space list did not include the created space.");
+}
+console.log("ok owner can list created space");
+
 const joined = await must(partner.rpc("join_couple_space", { invite_code_input: inviteCode }), "partner can join by invite code");
 if (joined.id !== spaceId) fail(`join_couple_space returned ${joined.id}, expected ${spaceId}.`);
 console.log("ok partner joined same space");
+
+const partnerSpacesAfterJoin = await must(partner.rpc("get_my_spaces"), "partner can list joined spaces");
+if (!partnerSpacesAfterJoin.some((space) => space.id === spaceId && space.role === "partner")) {
+  fail("partner space list did not include the joined space.");
+}
+console.log("ok partner can list joined space");
 
 const memory = await must(
   owner
@@ -122,9 +135,82 @@ await must(
 );
 console.log("ok partner updates shared preferences");
 
+const storagePath = `${spaceId}/library/smoke-${Date.now()}.pdf`;
+const smokePdf = new Blob(["%PDF-1.4\n% AfterLife smoke file\n"], { type: "application/pdf" });
+const uploadResult = await owner.storage.from(mediaBucket).upload(storagePath, smokePdf, {
+  contentType: "application/pdf",
+  upsert: false
+});
+if (uploadResult.error) fail(`owner can upload storage object failed: ${uploadResult.error.message}`);
+console.log("ok owner uploaded storage object");
+
+const readingItem = await must(
+  owner
+    .from("reading_items")
+    .insert({
+      space_id: spaceId,
+      created_by: ownerUser.id,
+      file_type: "PDF",
+      title: "Smoke PDF",
+      progress: 0,
+      meta: "Smoke storage-backed reading item",
+      storage_path: storagePath
+    })
+    .select("*")
+    .single(),
+  "owner can insert storage-backed reading item"
+);
+
+const mediaAsset = await must(
+  owner
+    .from("media_assets")
+    .insert({
+      space_id: spaceId,
+      uploaded_by: ownerUser.id,
+      reading_item_id: readingItem.id,
+      bucket_id: mediaBucket,
+      storage_path: storagePath,
+      file_name: "smoke.pdf",
+      mime_type: "application/pdf",
+      byte_size: smokePdf.size,
+      asset_kind: "book",
+      is_private: false
+    })
+    .select("*")
+    .single(),
+  "owner can insert media asset"
+);
+
+const partnerMedia = await must(
+  partner.from("media_assets").select("id,storage_path").eq("space_id", spaceId).eq("id", mediaAsset.id),
+  "partner can read media asset"
+);
+if (partnerMedia.length !== 1) fail("partner could not see owner-created media asset.");
+console.log("ok partner sees media asset");
+
+await must(
+  partner.rpc("record_space_event", {
+    target_space_id: spaceId,
+    event_kind: "smoke.checked",
+    event_payload: { ok: true }
+  }),
+  "partner can record a space event"
+);
+const ownerEvents = await must(owner.from("space_events").select("id,event_kind").eq("space_id", spaceId).eq("event_kind", "smoke.checked"), "owner can read partner event");
+if (!ownerEvents.length) fail("owner could not see partner-recorded event.");
+console.log("ok space events are shared");
+
+const rotated = await must(owner.rpc("rotate_space_invite", { target_space_id: spaceId }), "owner can rotate invite code");
+if (!rotated.invite_code || rotated.invite_code === inviteCode) fail("rotate_space_invite did not return a new invite code.");
+console.log("ok owner rotated invite code");
+
 if (outsiderEmail && outsiderPassword) {
   const outsider = createBrowserLikeClient();
   await signIn(outsider, outsiderEmail, outsiderPassword, "outsider");
+  const outsiderJoin = await outsider.rpc("join_couple_space", { invite_code_input: rotated.invite_code });
+  if (!outsiderJoin.error) fail("outsider joined a full two-person couple space.");
+  console.log("ok outsider cannot join full couple space");
+
   const outsiderMemories = await must(
     outsider.from("memories").select("id").eq("space_id", spaceId),
     "outsider query is RLS-filtered"
@@ -133,8 +219,8 @@ if (outsiderEmail && outsiderPassword) {
   console.log("ok outsider cannot read space memories");
 }
 
-await owner.from("memories").delete().eq("id", memory.id);
-await owner.from("list_items").delete().eq("id", listItem.id);
+await owner.storage.from(mediaBucket).remove([storagePath]);
+await must(owner.rpc("delete_couple_space", { target_space_id: spaceId }), "owner can delete smoke couple space");
 
 console.log("Supabase two-account smoke flow passed.");
 
@@ -156,16 +242,8 @@ async function signIn(client, email, password, label) {
   return data.user;
 }
 
-async function upsertProfile(client, user, displayName) {
-  await must(
-    client.from("profiles").upsert({
-      id: user.id,
-      email: user.email || "",
-      display_name: displayName,
-      updated_at: new Date().toISOString()
-    }),
-    `profile upsert for ${displayName}`
-  );
+async function bootstrapProfile(client, displayName) {
+  await must(client.rpc("bootstrap_profile", { display_name_input: displayName }), `profile bootstrap for ${displayName}`);
 }
 
 async function must(query, label) {

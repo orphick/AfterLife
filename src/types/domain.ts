@@ -33,6 +33,7 @@ export interface LibraryFile {
   progress: number;
   meta: string;
   remoteId?: string;
+  storagePath?: string;
 }
 
 export interface MemoryItem {
