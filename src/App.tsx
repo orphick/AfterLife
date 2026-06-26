@@ -5,6 +5,8 @@ import {
   Cloud,
   Copy,
   Download,
+  Eye,
+  EyeOff,
   HeartHandshake,
   KeyRound,
   LoaderCircle,
@@ -63,6 +65,7 @@ function App() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [spaceName, setSpaceName] = useState("Mo & Aysel");
@@ -394,7 +397,7 @@ function App() {
         return;
       }
 
-      if (!credentials.email.includes("@")) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(credentials.email)) {
         const message = "Use a valid email address.";
         setAuthMessage(message);
         showToast(message);
@@ -409,32 +412,42 @@ function App() {
       }
 
       setBusy(true);
-      const result =
-        authMode === "signup"
-          ? await supabase.auth.signUp({
-              ...credentials,
-              options: { data: { display_name: displayName.trim() || credentials.email.split("@")[0] } }
-            })
-          : await supabase.auth.signInWithPassword(credentials);
+      try {
+        const result =
+          authMode === "signup"
+            ? await supabase.auth.signUp({
+                ...credentials,
+                options: {
+                  data: { display_name: displayName.trim() || credentials.email.split("@")[0] },
+                  emailRedirectTo: window.location.origin
+                }
+              })
+            : await supabase.auth.signInWithPassword(credentials);
 
-      setBusy(false);
+        if (result.error) {
+          const message = getFriendlyAuthMessage(result.error.message, authMode);
+          setAuthMessage(message);
+          showToast(message);
+          return;
+        }
 
-      if (result.error) {
-        setAuthMessage(result.error.message);
-        showToast(result.error.message);
-        return;
-      }
+        if (authMode === "signup" && !result.data.session) {
+          const message = "Account created. Open the confirmation email, then come back and sign in.";
+          setAuthMessage(message);
+          showToast(message);
+          return;
+        }
 
-      if (authMode === "signup" && !result.data.session) {
-        const message = "Check your email to finish sign up.";
+        const message = authMode === "signup" ? "Account created. Setting up your space." : "Signed in. Loading your space.";
         setAuthMessage(message);
         showToast(message);
-        return;
+      } catch {
+        const message = "Could not reach sign in. Check the connection and try again.";
+        setAuthMessage(message);
+        showToast(message);
+      } finally {
+        setBusy(false);
       }
-
-      const message = authMode === "signup" ? "Account created." : "Signed in.";
-      setAuthMessage(message);
-      showToast(message);
     },
     [authEmail, authMode, authPassword, displayName, showToast]
   );
@@ -1099,6 +1112,7 @@ function App() {
         displayName={displayName}
         email={authEmail}
         password={authPassword}
+        showPassword={showAuthPassword}
         onAuthMode={(mode) => {
           setAuthMode(mode);
           setAuthMessage("");
@@ -1106,6 +1120,7 @@ function App() {
         onDisplayName={setDisplayName}
         onEmail={setAuthEmail}
         onPassword={setAuthPassword}
+        onShowPassword={setShowAuthPassword}
         onSubmit={handleAuth}
       />
     );
@@ -1279,10 +1294,12 @@ function AuthScreen({
   displayName,
   email,
   password,
+  showPassword,
   onAuthMode,
   onDisplayName,
   onEmail,
   onPassword,
+  onShowPassword,
   onSubmit
 }: {
   authMode: "signin" | "signup";
@@ -1291,12 +1308,19 @@ function AuthScreen({
   displayName: string;
   email: string;
   password: string;
+  showPassword: boolean;
   onAuthMode: (mode: "signin" | "signup") => void;
   onDisplayName: (value: string) => void;
   onEmail: (value: string) => void;
   onPassword: (value: string) => void;
+  onShowPassword: (value: boolean) => void;
   onSubmit: () => void;
 }) {
+  const emailReady = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const passwordReady = password.length >= 6;
+  const canSubmit = emailReady && passwordReady && !busy;
+  const messageIsGood = /account created|signed in|confirmation email|loading your space/i.test(message);
+
   return (
     <main className="auth-shell">
       <section className="auth-card">
@@ -1315,8 +1339,12 @@ function AuthScreen({
             Create account
           </ChipButton>
         </div>
+        <div className="auth-guidance">
+          <strong>{authMode === "signup" ? "Create your private account" : "Welcome back"}</strong>
+          <p>{authMode === "signup" ? "Use an email you can open. If email confirmation is on, you will finish from your inbox." : "Use the same email and password you used when you created the account."}</p>
+        </div>
         {message ? (
-          <p className="form-note" role="status">
+          <p className={`form-note ${messageIsGood ? "success-note" : ""}`} role="status">
             {message}
           </p>
         ) : null}
@@ -1334,19 +1362,31 @@ function AuthScreen({
           }}
         >
           {authMode === "signup" ? (
-            <Field label="Display name" value={displayName} onChange={(event) => onDisplayName(event.currentTarget.value)} />
+            <Field label="Display name" value={displayName} autoComplete="name" placeholder="Mo or Aysel" onChange={(event) => onDisplayName(event.currentTarget.value)} />
           ) : null}
-          <Field label="Email" type="email" value={email} autoComplete="email" required onChange={(event) => onEmail(event.currentTarget.value)} />
-          <Field
-            label="Password"
-            type="password"
-            value={password}
-            autoComplete={authMode === "signup" ? "new-password" : "current-password"}
-            minLength={6}
-            required
-            onChange={(event) => onPassword(event.currentTarget.value)}
-          />
-          <Button icon={KeyRound} disabled={busy} type="button" onClick={() => void onSubmit()}>
+          <Field label="Email" type="email" value={email} autoComplete="email" placeholder="you@example.com" required onChange={(event) => onEmail(event.currentTarget.value)} />
+          <label className="field password-field">
+            <span>Password</span>
+            <div className="input-action">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+                minLength={6}
+                required
+                placeholder="At least 6 characters"
+                onChange={(event) => onPassword(event.currentTarget.value)}
+              />
+              <button type="button" title={showPassword ? "Hide password" : "Show password"} aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => onShowPassword(!showPassword)}>
+                {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+              </button>
+            </div>
+          </label>
+          <div className="auth-requirements" aria-label="Sign in requirements">
+            <span className={emailReady ? "is-ready" : ""}>Valid email</span>
+            <span className={passwordReady ? "is-ready" : ""}>6+ character password</span>
+          </div>
+          <Button icon={KeyRound} disabled={!canSubmit} type="button" onClick={() => void onSubmit()}>
             {busy ? "Working" : authMode === "signup" ? "Create account" : "Sign in"}
           </Button>
         </form>
@@ -1586,6 +1626,36 @@ function ChipButton({ active, children, onClick }: { active: boolean; children: 
       {children}
     </button>
   );
+}
+
+function getFriendlyAuthMessage(message: string, mode: "signin" | "signup") {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("invalid login") || lower.includes("invalid email or password")) {
+    return "Email or password did not match. Try again or create an account first.";
+  }
+
+  if (lower.includes("email not confirmed")) {
+    return "Open the confirmation email first, then come back and sign in.";
+  }
+
+  if (lower.includes("user already registered") || lower.includes("already registered")) {
+    return "That email already has an account. Switch to Sign in.";
+  }
+
+  if (lower.includes("password")) {
+    return mode === "signup" ? "Use a password with at least 6 characters." : "Check the password and try again.";
+  }
+
+  if (lower.includes("rate limit") || lower.includes("too many")) {
+    return "Too many attempts. Wait a minute, then try again.";
+  }
+
+  if (lower.includes("fetch") || lower.includes("network")) {
+    return "Could not reach sign in. Check the connection and try again.";
+  }
+
+  return message || "Could not finish sign in. Try again.";
 }
 
 function mapMemoryRow(row: any): MemoryItem {
