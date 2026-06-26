@@ -910,6 +910,22 @@ input[type="range"] {
   gap: 12px;
 }
 
+.local-mode-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  color: #165f51;
+  background: #e6f5f0;
+  border: 1px solid #c7e8dd;
+  border-radius: var(--radius);
+}
+
+.local-mode-card strong {
+  display: block;
+  color: #123f37;
+  line-height: 1.2;
+}
+
 .setup-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

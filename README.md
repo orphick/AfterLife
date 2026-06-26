@@ -9,7 +9,17 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Without Supabase env vars, the app runs in local-device mode using browser storage. The older local JSON API bridge is still available after a build:
+Without Supabase env vars, the Vite dev server runs a local JSON backend at `/api/local/*`.
+
+The local flow is:
+
+- Enter your name to create a local profile.
+- Create a couple space.
+- Copy the invite code from the Home context panel.
+- Use another browser profile/session to enter a different name and join with that code.
+- Memories, list ideas, reading notes, uploads metadata, and shared preferences save into `data/afterlife.local.json`.
+
+The older static build JSON API bridge is still available after a build:
 
 ```powershell
 npm.cmd run build

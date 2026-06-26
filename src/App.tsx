@@ -19,20 +19,25 @@ import {
 } from "lucide-react";
 import { tabs } from "./lib/appData";
 import { generateInviteCode, normalizeInviteCode } from "./lib/invite";
-import { getPersistableState, mergeState, readLocalState, writeLocalState } from "./lib/state";
+import {
+  bootstrapLocal,
+  createLocalSpace,
+  getLocalClientId,
+  getSavedLocalSpaceId,
+  joinLocalSpace,
+  loadLocalSpaceState,
+  resetLocalIdentity,
+  saveLocalProfile,
+  saveLocalSpaceId,
+  saveLocalSpaceState
+} from "./lib/localBackend";
+import { mergeState, readLocalState, writeLocalState } from "./lib/state";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { usePwa } from "./hooks/usePwa";
 import type { AppState, CoupleSpace, LibraryFile, MemoryItem, ReadingNote, SyncStatus, UserProfile } from "./types/domain";
 import { tabIcons } from "./components/icons";
 import { Avatars, Button, Field } from "./components/ui";
 import { ContextPanel, HomeView, LibraryView, MemoriesView, TogetherView, type ViewActions } from "./components/views";
-
-const localSpace: CoupleSpace = {
-  id: "local",
-  name: "Local Couple Space",
-  inviteCode: "LOCAL",
-  role: "local"
-};
 
 const syncedPreferenceKeys = new Set<keyof AppState>([
   "activeActivity",
@@ -46,13 +51,14 @@ const syncedPreferenceKeys = new Set<keyof AppState>([
 ]);
 
 function App() {
+  const [localClientId] = useState(() => getLocalClientId());
   const [state, setState] = useState<AppState>(() => readLocalState());
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(isSupabaseConfigured ? "checking" : "local");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("checking");
   const [session, setSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [authReady, setAuthReady] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [spaces, setSpaces] = useState<CoupleSpace[]>([]);
-  const [activeSpace, setActiveSpace] = useState<CoupleSpace | null>(isSupabaseConfigured ? null : localSpace);
+  const [activeSpace, setActiveSpace] = useState<CoupleSpace | null>(null);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -62,6 +68,7 @@ function App() {
   const [busy, setBusy] = useState(false);
   const toastTimer = useRef<number | null>(null);
   const apiSaveTimer = useRef<number | null>(null);
+  const lastLocalSaveAt = useRef(0);
 
   const showToast = useCallback((message: string) => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -76,20 +83,18 @@ function App() {
   const saveLocalSnapshot = useCallback((next: AppState) => {
     writeLocalState(next);
 
-    if (isSupabaseConfigured) return;
+    if (isSupabaseConfigured || !activeSpace) return;
     if (!window.location.protocol.startsWith("http")) return;
 
     if (apiSaveTimer.current) window.clearTimeout(apiSaveTimer.current);
     apiSaveTimer.current = window.setTimeout(() => {
-      fetch("/api/state", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(getPersistableState(next))
-      }).catch(() => {
-        // Vite dev does not expose the local API bridge. localStorage remains active.
-      });
+      lastLocalSaveAt.current = Date.now();
+      setSyncStatus("saving");
+      saveLocalSpaceState(localClientId, activeSpace.id, next)
+        .then(() => setSyncStatus("local"))
+        .catch(() => setSyncStatus("offline"));
     }, 350);
-  }, []);
+  }, [activeSpace, localClientId]);
 
   const saveRemotePreferences = useCallback(
     async (next: AppState) => {
@@ -141,16 +146,32 @@ function App() {
   useEffect(() => {
     if (isSupabaseConfigured) return;
 
-    fetch("/api/state", { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (data && Object.keys(data).length > 0) {
-          setState(mergeState(data));
-          setSyncStatus("local");
-        }
+    let cancelled = false;
+    setAuthReady(false);
+
+    bootstrapLocal(localClientId)
+      .then(({ profile: localProfile, spaces: localSpaces }) => {
+        if (cancelled) return;
+
+        setProfile(localProfile);
+        setSpaces(localSpaces);
+
+        const savedSpaceId = getSavedLocalSpaceId();
+        const savedSpace = localSpaces.find((space) => space.id === savedSpaceId);
+        setActiveSpace(savedSpace || localSpaces[0] || null);
+        setSyncStatus("local");
+        setAuthReady(true);
       })
-      .catch(() => setSyncStatus("local"));
-  }, []);
+      .catch(() => {
+        if (cancelled) return;
+        setSyncStatus("offline");
+        setAuthReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localClientId]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -224,10 +245,12 @@ function App() {
   );
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
     if (!session) {
       setProfile(null);
       setSpaces([]);
-      setActiveSpace(isSupabaseConfigured ? null : localSpace);
+      setActiveSpace(null);
       return;
     }
     void refreshSpaces();
@@ -300,6 +323,42 @@ function App() {
   }, [activeSpace, loadRemoteState]);
 
   useEffect(() => {
+    if (isSupabaseConfigured || !activeSpace) return;
+
+    let cancelled = false;
+
+    const pullState = async (silent = false) => {
+      if (Date.now() - lastLocalSaveAt.current < 900) return;
+
+      try {
+        if (!silent) setSyncStatus("loading");
+        const localState = await loadLocalSpaceState(localClientId, activeSpace.id);
+        if (cancelled) return;
+
+        if (localState) {
+          setState((current) => {
+            const next = mergeState({ ...localState, activeTab: current.activeTab });
+            writeLocalState(next);
+            return next;
+          });
+        }
+        setSyncStatus("local");
+      } catch {
+        if (!cancelled) setSyncStatus("offline");
+      }
+    };
+
+    saveLocalSpaceId(activeSpace.id);
+    void pullState();
+    const timer = window.setInterval(() => void pullState(true), 2500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeSpace, localClientId]);
+
+  useEffect(() => {
     if (!supabase || !activeSpace || activeSpace.role === "local") return;
 
     const client = supabase;
@@ -354,9 +413,52 @@ function App() {
     [authEmail, authMode, authPassword, displayName, showToast]
   );
 
+  const handleLocalProfile = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault();
+      const name = displayName.trim();
+      if (!name) {
+        showToast("Add your name first.");
+        return;
+      }
+
+      setBusy(true);
+      try {
+        const localProfile = await saveLocalProfile(localClientId, name);
+        setProfile(localProfile);
+        setSyncStatus("local");
+        showToast("Local profile ready.");
+      } catch (error) {
+        setSyncStatus("offline");
+        showToast(error instanceof Error ? error.message : "Could not save local profile.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [displayName, localClientId, showToast]
+  );
+
   const createSpace = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
+
+      if (!isSupabaseConfigured) {
+        setBusy(true);
+        try {
+          const created = await createLocalSpace(localClientId, spaceName.trim() || "Mo & Aysel", state);
+          setSpaces((current) => [created, ...current.filter((space) => space.id !== created.id)]);
+          setActiveSpace(created);
+          setSyncStatus("local");
+          showToast("Local couple space created.");
+        } catch (error) {
+          setSyncStatus("offline");
+          showToast(error instanceof Error ? error.message : "Could not create local space.");
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+
       if (!supabase || !session) return;
 
       setBusy(true);
@@ -376,15 +478,39 @@ function App() {
       await refreshSpaces(created?.id);
       showToast("Couple space created.");
     },
-    [refreshSpaces, session, showToast, spaceName]
+    [localClientId, refreshSpaces, session, showToast, spaceName, state]
   );
 
   const joinSpace = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
+      const inviteCode = normalizeInviteCode(inviteDraft);
+
+      if (!isSupabaseConfigured) {
+        if (!inviteCode) {
+          showToast("Enter the invite code.");
+          return;
+        }
+
+        setBusy(true);
+        try {
+          const joined = await joinLocalSpace(localClientId, inviteCode);
+          setSpaces((current) => [joined, ...current.filter((space) => space.id !== joined.id)]);
+          setActiveSpace(joined);
+          setInviteDraft("");
+          setSyncStatus("local");
+          showToast("Joined local couple space.");
+        } catch (error) {
+          setSyncStatus("offline");
+          showToast(error instanceof Error ? error.message : "Invite code not found.");
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+
       if (!supabase || !session) return;
 
-      const inviteCode = normalizeInviteCode(inviteDraft);
       if (!inviteCode) {
         showToast("Enter the invite code.");
         return;
@@ -404,15 +530,26 @@ function App() {
       setInviteDraft("");
       showToast("Joined the couple space.");
     },
-    [inviteDraft, refreshSpaces, session, showToast]
+    [inviteDraft, localClientId, refreshSpaces, session, showToast]
   );
 
   const signOut = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      resetLocalIdentity();
+      window.location.reload();
+      return;
+    }
+
     if (!supabase) return;
     await supabase.auth.signOut();
     setActiveSpace(null);
     showToast("Signed out.");
   }, [showToast]);
+
+  const selectSpace = useCallback((space: CoupleSpace) => {
+    if (!isSupabaseConfigured) saveLocalSpaceId(space.id);
+    setActiveSpace(space);
+  }, []);
 
   const addMemory = useCallback(
     async (title: string, body: string, isPrivate = false, kind = "memory") => {
@@ -632,6 +769,35 @@ function App() {
     return <LoadingScreen />;
   }
 
+  if (!isSupabaseConfigured && !profile) {
+    return (
+      <LocalProfileScreen
+        busy={busy}
+        displayName={displayName}
+        onDisplayName={setDisplayName}
+        onSubmit={handleLocalProfile}
+      />
+    );
+  }
+
+  if (!isSupabaseConfigured && profile && !activeSpace) {
+    return (
+      <SpaceScreen
+        busy={busy}
+        inviteDraft={inviteDraft}
+        profile={profile}
+        spaceName={spaceName}
+        spaces={spaces}
+        onCreate={createSpace}
+        onInviteDraft={setInviteDraft}
+        onJoin={joinSpace}
+        onSelectSpace={selectSpace}
+        onSignOut={signOut}
+        onSpaceName={setSpaceName}
+      />
+    );
+  }
+
   if (isSupabaseConfigured && !session) {
     return (
       <AuthScreen
@@ -660,7 +826,7 @@ function App() {
         onCreate={createSpace}
         onInviteDraft={setInviteDraft}
         onJoin={joinSpace}
-        onSelectSpace={setActiveSpace}
+        onSelectSpace={selectSpace}
         onSignOut={signOut}
         onSpaceName={setSpaceName}
       />
@@ -721,11 +887,9 @@ function App() {
             ) : null}
             <span className="pill">{state.spicy.mo && state.spicy.aysel ? "Private mode ready" : "Private mode waiting"}</span>
             <Avatars />
-            {isSupabaseConfigured ? (
-              <button className="icon-button" type="button" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>
-                <LogOut aria-hidden="true" />
-              </button>
-            ) : null}
+            <button className="icon-button" type="button" title="Sign out" aria-label="Sign out" onClick={() => void signOut()}>
+              <LogOut aria-hidden="true" />
+            </button>
           </div>
         </div>
         <div className="workspace-grid">
@@ -757,6 +921,45 @@ function LoadingScreen() {
       <section className="auth-card">
         <LoaderCircle className="spin" aria-hidden="true" />
         <h1>AfterLife</h1>
+      </section>
+    </main>
+  );
+}
+
+function LocalProfileScreen({
+  busy,
+  displayName,
+  onDisplayName,
+  onSubmit
+}: {
+  busy: boolean;
+  displayName: string;
+  onDisplayName: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  return (
+    <main className="auth-shell">
+      <section className="auth-card">
+        <div className="brand large-brand">
+          <span className="brand-mark">AF</span>
+          <div>
+            <strong>AfterLife</strong>
+            <p>Local backend mode</p>
+          </div>
+        </div>
+        <section className="local-mode-card">
+          <Shield aria-hidden="true" />
+          <div>
+            <strong>Workable locally first.</strong>
+            <p>Create a local profile, make a couple space, copy the invite code, and test shared saving before Supabase goes online.</p>
+          </div>
+        </section>
+        <form className="form-grid" onSubmit={onSubmit}>
+          <Field label="Your name" value={displayName} autoFocus required onChange={(event) => onDisplayName(event.currentTarget.value)} />
+          <Button icon={UserPlus} disabled={busy} type="submit">
+            Continue
+          </Button>
+        </form>
       </section>
     </main>
   );
@@ -939,7 +1142,7 @@ function AnswerModal({ state, actions }: { state: AppState; actions: ViewActions
 function SyncPill({ status }: { status: SyncStatus }) {
   const label = {
     checking: "Checking",
-    local: "This device",
+    local: "Local backend",
     offline: "Offline",
     loading: "Loading",
     saving: "Saving",
