@@ -4,6 +4,7 @@ import {
   Download,
   Lock,
   Moon,
+  Pencil,
   Plus,
   Send,
   Shield,
@@ -19,6 +20,7 @@ import { Avatars, Button, Chip, Field, IconBox, Progress, ViewHeader } from "./u
 export interface ViewActions {
   updateState: (patch: Partial<AppState>) => void;
   addMemory: (title: string, body: string, isPrivate?: boolean, kind?: string) => Promise<void>;
+  editMemory: (memory: MemoryItem) => void;
   deleteMemory: (memory: MemoryItem) => Promise<void>;
   deleteListItem: (item: string, index: number) => Promise<void>;
   addListItem: () => Promise<void>;
@@ -346,6 +348,7 @@ export function MemoriesView({ state, actions }: ViewProps) {
             onClick={() =>
               actions.updateState({
                 modal: "memory",
+                memoryEditingId: "",
                 memoryTitleDraft: "",
                 memoryBodyDraft: "",
                 memoryKindDraft: "memory",
@@ -410,6 +413,7 @@ function renderMemoryView(state: AppState, actions: ViewActions) {
               onClick={() =>
                 actions.updateState({
                   modal: "memory",
+                  memoryEditingId: "",
                   memoryTitleDraft: "Open when you miss me",
                   memoryBodyDraft: "",
                   memoryKindDraft: "letter",
@@ -495,9 +499,14 @@ function MemoryCard({ memory, actions }: { memory: MemoryItem; actions: ViewActi
         <strong>{memory.title}</strong>
         <p>{memory.private ? "Locked preview hidden." : memory.body}</p>
       </div>
-      <button className="icon-button" type="button" title="Delete memory" aria-label="Delete memory" onClick={() => actions.deleteMemory(memory)}>
-        <Trash2 aria-hidden="true" />
-      </button>
+      <div className="card-actions">
+        <button className="icon-button" type="button" title="Open memory" aria-label={`Open ${memory.title}`} onClick={() => actions.editMemory(memory)}>
+          <Pencil aria-hidden="true" />
+        </button>
+        <button className="icon-button" type="button" title="Delete memory" aria-label={`Delete ${memory.title}`} onClick={() => actions.deleteMemory(memory)}>
+          <Trash2 aria-hidden="true" />
+        </button>
+      </div>
     </article>
   );
 }
@@ -733,6 +742,7 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
                 activeTab: "memories",
                 memoriesView: "letters",
                 modal: "memory",
+                memoryEditingId: "",
                 memoryTitleDraft: "Open when you miss me",
                 memoryBodyDraft: "",
                 memoryKindDraft: "letter",
@@ -781,6 +791,7 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
               actions.updateState({
                 activeTab: "memories",
                 modal: "memory",
+                memoryEditingId: "",
                 memoryTitleDraft: "Shared highlight",
                 memoryBodyDraft: "",
                 memoryKindDraft: "reading",

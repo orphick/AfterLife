@@ -73,6 +73,7 @@ export interface AppState {
   memoryBodyDraft: string;
   memoryKindDraft: string;
   memoryPrivateDraft: boolean;
+  memoryEditingId: string;
   glimpseCaption: string;
   listDraft: string;
   notePageDraft: string;

@@ -746,6 +746,12 @@ p {
   border-radius: var(--radius);
 }
 
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .timeline-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

@@ -630,6 +630,20 @@ function App() {
     [activeSpace, showToast]
   );
 
+  const editMemory = useCallback(
+    (memory: MemoryItem) => {
+      updateState({
+        modal: "memory",
+        memoryEditingId: memory.id,
+        memoryTitleDraft: memory.title,
+        memoryBodyDraft: memory.body,
+        memoryKindDraft: memory.private && memory.kind === "vault" ? "memory" : memory.kind || "memory",
+        memoryPrivateDraft: memory.private
+      });
+    },
+    [updateState]
+  );
+
   const addListItem = useCallback(async () => {
     const item = state.listDraft.trim();
     if (!item) {
@@ -913,6 +927,7 @@ function App() {
   const saveMemoryDraft = useCallback(async () => {
     const title = state.memoryTitleDraft.trim();
     const body = state.memoryBodyDraft.trim();
+    const editingMemory = state.memories.find((memory) => memory.id === state.memoryEditingId);
 
     if (!title || !body) {
       showToast("Add a title and a body first.");
@@ -924,9 +939,54 @@ function App() {
       return;
     }
 
-    await addMemory(title, body, state.memoryPrivateDraft, state.memoryPrivateDraft ? "vault" : state.memoryKindDraft || "memory");
+    const draftKind = state.memoryKindDraft === "vault" && !state.memoryPrivateDraft ? "memory" : state.memoryKindDraft || "memory";
+    const nextKind = state.memoryPrivateDraft ? "vault" : draftKind;
+
+    if (editingMemory) {
+      if (supabase && activeSpace && activeSpace.role !== "local" && editingMemory.remoteId) {
+        setSyncStatus("saving");
+        const { error } = await supabase
+          .from("memories")
+          .update({
+            title,
+            body,
+            kind: nextKind,
+            is_private: state.memoryPrivateDraft,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", editingMemory.remoteId);
+
+        if (error) {
+          setSyncStatus("error");
+          showToast("Memory did not update online.");
+          return;
+        }
+        setSyncStatus("saved");
+      }
+
+      updateState({
+        memories: state.memories.map((memory) =>
+          memory.id === editingMemory.id
+            ? { ...memory, title, body, kind: nextKind, private: state.memoryPrivateDraft }
+            : memory
+        ),
+        modal: null,
+        memoryEditingId: "",
+        memoryTitleDraft: "",
+        memoryBodyDraft: "",
+        memoryKindDraft: "memory",
+        memoryPrivateDraft: false,
+        activeTab: "memories",
+        memoriesView: state.memoryPrivateDraft ? "vault" : nextKind === "letter" ? "letters" : "wall"
+      });
+      showToast("Memory updated.");
+      return;
+    }
+
+    await addMemory(title, body, state.memoryPrivateDraft, nextKind);
     updateState({
       modal: null,
+      memoryEditingId: "",
       memoryTitleDraft: "",
       memoryBodyDraft: "",
       memoryKindDraft: "memory",
@@ -935,7 +995,7 @@ function App() {
       memoriesView: state.memoryPrivateDraft ? "vault" : state.memoryKindDraft === "letter" ? "letters" : "wall"
     });
     showToast("Memory saved.");
-  }, [addMemory, showToast, state.memoryBodyDraft, state.memoryKindDraft, state.memoryPrivateDraft, state.memoryTitleDraft, state.spicy, updateState]);
+  }, [activeSpace, addMemory, showToast, state.memories, state.memoryBodyDraft, state.memoryEditingId, state.memoryKindDraft, state.memoryPrivateDraft, state.memoryTitleDraft, state.spicy, updateState]);
 
   const copyInvite = useCallback(async () => {
     if (!activeSpace?.inviteCode) return;
@@ -952,6 +1012,7 @@ function App() {
     () => ({
       updateState,
       addMemory,
+      editMemory,
       deleteMemory,
       deleteListItem,
       addListItem,
@@ -966,7 +1027,7 @@ function App() {
       showToast,
       copyInvite
     }),
-    [addListItem, addMemory, addNote, copyInvite, deleteLibraryFile, deleteListItem, deleteMemory, deleteNote, openLibraryFile, saveAnswer, saveMemoryDraft, showToast, updateFileProgress, updateState, uploadFiles]
+    [addListItem, addMemory, addNote, copyInvite, deleteLibraryFile, deleteListItem, deleteMemory, deleteNote, editMemory, openLibraryFile, saveAnswer, saveMemoryDraft, showToast, updateFileProgress, updateState, uploadFiles]
   );
 
   function updateLocalList(updater: (current: AppState) => AppState) {
@@ -1377,6 +1438,7 @@ function EntryModal({ state, actions }: { state: AppState; actions: ViewActions 
         onClick={() =>
           actions.updateState({
             modal: null,
+            memoryEditingId: "",
             memoryTitleDraft: "",
             memoryBodyDraft: "",
             memoryKindDraft: "memory",
@@ -1384,11 +1446,11 @@ function EntryModal({ state, actions }: { state: AppState; actions: ViewActions 
           })
         }
       >
-        <section className="modal" role="dialog" aria-modal="true" aria-label="Save memory" onClick={(event) => event.stopPropagation()}>
+        <section className="modal" role="dialog" aria-modal="true" aria-label={state.memoryEditingId ? "Edit memory" : "Save memory"} onClick={(event) => event.stopPropagation()}>
           <div className="modal-header">
             <div>
-              <span className="meta">Shared archive</span>
-              <h2>Save memory</h2>
+              <span className="meta">{state.memoryEditingId ? "Editing saved item" : "Shared archive"}</span>
+              <h2>{state.memoryEditingId ? "Edit memory" : "Save memory"}</h2>
             </div>
             <button
               className="icon-button"
@@ -1398,6 +1460,7 @@ function EntryModal({ state, actions }: { state: AppState; actions: ViewActions 
               onClick={() =>
                 actions.updateState({
                   modal: null,
+                  memoryEditingId: "",
                   memoryTitleDraft: "",
                   memoryBodyDraft: "",
                   memoryKindDraft: "memory",
@@ -1441,7 +1504,7 @@ function EntryModal({ state, actions }: { state: AppState; actions: ViewActions 
           </label>
           <div className="button-row">
             <Button icon={state.memoryPrivateDraft ? Lock : StickyNote} variant={state.memoryPrivateDraft ? "danger" : "primary"} onClick={() => actions.saveMemoryDraft()}>
-              Save memory
+              {state.memoryEditingId ? "Update memory" : "Save memory"}
             </Button>
           </div>
         </section>

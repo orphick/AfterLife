@@ -97,6 +97,7 @@ export const defaultState: AppState = {
   memoryBodyDraft: "",
   memoryKindDraft: "memory",
   memoryPrivateDraft: false,
+  memoryEditingId: "",
   glimpseCaption: "",
   listDraft: "",
   notePageDraft: "",

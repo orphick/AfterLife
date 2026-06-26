@@ -27,6 +27,7 @@ export function mergeState(saved: Partial<AppState> | null | undefined): AppStat
     memoryBodyDraft: "",
     memoryKindDraft: saved.memoryKindDraft || base.memoryKindDraft,
     memoryPrivateDraft: Boolean(saved.memoryPrivateDraft),
+    memoryEditingId: "",
     notePageDraft: saved.notePageDraft || ""
   };
 }
@@ -38,7 +39,8 @@ export function getPersistableState(state: AppState): AppState {
     modal: null,
     questionDraft: "",
     memoryTitleDraft: "",
-    memoryBodyDraft: ""
+    memoryBodyDraft: "",
+    memoryEditingId: ""
   };
 }
 
