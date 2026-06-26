@@ -302,10 +302,10 @@ function App() {
           readingProgress: preferences.reading_progress ?? current.readingProgress,
           readerNight: preferences.reader_night ?? current.readerNight,
           glimpseCaption: preferences.glimpse_caption || current.glimpseCaption,
-          memories: remoteMemories.length ? remoteMemories : current.memories,
-          listItems: remoteListItems.length ? remoteListItems : current.listItems,
-          files: remoteFiles.length ? remoteFiles : current.files,
-          notes: remoteNotes.length ? remoteNotes : current.notes
+          memories: remoteMemories,
+          listItems: remoteListItems,
+          files: remoteFiles,
+          notes: remoteNotes
         };
 
         writeLocalState(next);
