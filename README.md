@@ -45,6 +45,14 @@ The first shared flow is:
 - Sign in as the second user and join with the code.
 - Memories, list ideas, reading notes, and preferences sync between both users.
 
+For a full backend smoke test with two existing Supabase Auth accounts, add the optional `AFTERLIFE_SMOKE_*` values from `.env.example`, then run:
+
+```powershell
+npm.cmd run smoke:supabase
+```
+
+That test signs both accounts in, creates a real couple space, joins by invite code, verifies shared memory/list/preference access, and optionally checks that a third non-member account cannot read the space.
+
 ## Scripts
 
 ```powershell
@@ -54,6 +62,7 @@ npm.cmd run build
 npm.cmd run check
 npm.cmd run check:api
 npm.cmd run check:supabase
+npm.cmd run smoke:supabase
 ```
 
 ## Deployment Notes

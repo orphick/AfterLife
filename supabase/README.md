@@ -47,6 +47,8 @@ Run:
 npm.cmd run check:supabase
 ```
 
+This verifies the auth endpoint, table access shape, and that couple-space RPCs reject anonymous calls.
+
 Then start the app:
 
 ```powershell
@@ -60,6 +62,22 @@ Test with two accounts:
 3. Aysel signs up or signs in.
 4. Aysel joins with the invite code.
 5. Save a memory from one account and confirm it appears in the other.
+
+For a repeatable command-line smoke test, create or confirm two Supabase Auth accounts, add these values to `.env.local`, and run `npm.cmd run smoke:supabase`:
+
+```powershell
+AFTERLIFE_SMOKE_EMAIL_1=mo@example.com
+AFTERLIFE_SMOKE_PASSWORD_1=your-password
+AFTERLIFE_SMOKE_EMAIL_2=aysel@example.com
+AFTERLIFE_SMOKE_PASSWORD_2=your-password
+```
+
+Optional third-account RLS check:
+
+```powershell
+AFTERLIFE_SMOKE_OUTSIDER_EMAIL=outsider@example.com
+AFTERLIFE_SMOKE_OUTSIDER_PASSWORD=your-password
+```
 
 ## Production Notes
 

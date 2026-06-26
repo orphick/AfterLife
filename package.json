@@ -10,8 +10,9 @@
     "dev": "vite",
     "preview": "vite preview",
     "serve:api": "node scripts/serve.mjs",
+    "smoke:supabase": "node scripts/smoke-supabase-flow.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && node --check public/service-worker.js && node --check scripts/serve.mjs && node --check scripts/check-api.mjs"
+    "check": "npm run typecheck && node --check public/service-worker.js && node --check scripts/serve.mjs && node --check scripts/check-api.mjs && node --check scripts/check-supabase.mjs && node --check scripts/smoke-supabase-flow.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

@@ -21,7 +21,7 @@ const requiredTables = [
   "reading_notes"
 ];
 
-const requiredRpcs = [
+const protectedRpcs = [
   {
     name: "create_couple_space",
     body: { space_name: "AfterLife smoke test", invite_code_input: "SMOKE123" }
@@ -65,7 +65,7 @@ for (const table of requiredTables) {
   console.log(`ok table ${table}`);
 }
 
-for (const rpc of requiredRpcs) {
+for (const rpc of protectedRpcs) {
   const result = await request(`/rest/v1/rpc/${rpc.name}`, {
     method: "POST",
     body: JSON.stringify(rpc.body)
@@ -76,10 +76,20 @@ for (const rpc of requiredRpcs) {
     process.exit(1);
   }
 
-  console.log(`ok rpc ${rpc.name}`);
+  if (result.ok) {
+    console.error(`RPC ${rpc.name} allowed an anonymous call. It must require a signed-in user.`);
+    process.exit(1);
+  }
+
+  if (!result.text.includes("Not authenticated") && result.status !== 401 && result.status !== 403) {
+    console.error(`RPC ${rpc.name} exists but did not fail with the expected auth guard: ${result.status} ${result.text}`);
+    process.exit(1);
+  }
+
+  console.log(`ok rpc ${rpc.name} requires auth`);
 }
 
-console.log("Supabase backend looks reachable and schema-shaped.");
+console.log("Supabase backend looks reachable, schema-shaped, and auth-guarded.");
 
 async function readEnvFile(path) {
   const target = resolve(path);
