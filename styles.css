@@ -291,6 +291,26 @@ p {
   white-space: nowrap;
 }
 
+.sync-pill {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  color: #4d4248;
+  background: #f3ede9;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.sync-online {
+  color: #165f51;
+  background: #e6f5f0;
+  border-color: #c7e8dd;
+}
+
 .presence-card,
 .panel,
 .metric-card,
@@ -895,6 +915,10 @@ input[type="range"] {
   }
 
   .topbar-actions .pill {
+    display: none;
+  }
+
+  .sync-pill {
     display: none;
   }
 

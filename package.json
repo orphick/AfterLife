@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "check:api": "node scripts/check-api.mjs",
     "dev": "node scripts/serve.mjs",
-    "check": "node --check app.js && node --check service-worker.js && node --check scripts/serve.mjs && node --check scripts/build.mjs"
+    "check": "node --check app.js && node --check service-worker.js && node --check scripts/serve.mjs && node --check scripts/build.mjs && node --check scripts/check-api.mjs"
   }
 }

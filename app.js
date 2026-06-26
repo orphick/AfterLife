@@ -122,10 +122,12 @@ let state = loadState();
 let toastTimer = null;
 let deferredInstallPrompt = null;
 let refreshingFromServiceWorker = false;
+let apiSaveTimer = null;
 
 const runtime = {
   canInstall: false,
   hasUpdate: false,
+  apiStatus: "checking",
   isStandalone: window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true,
   waitingWorker: null
 };
@@ -152,7 +154,9 @@ function mergeState(base, saved) {
 }
 
 function saveState() {
-  writeStoredState(JSON.stringify({ ...state, toast: "", modal: null }));
+  const cleanState = getPersistableState();
+  writeStoredState(JSON.stringify(cleanState));
+  scheduleApiSave(cleanState);
 }
 
 function readStoredState() {
@@ -169,6 +173,10 @@ function writeStoredState(value) {
   } catch {
     // Some embedded browsers disable storage; the in-memory state still works.
   }
+}
+
+function getPersistableState() {
+  return { ...state, toast: "", modal: null };
 }
 
 function setState(patch) {
@@ -231,6 +239,7 @@ function render() {
             <strong>${escapeHtml(active.label)}</strong>
           </div>
           <div class="topbar-actions">
+            ${renderSyncStatus()}
             ${renderPwaActions()}
             <span class="pill">${spicyEnabled() ? "Private mode ready" : "Private mode waiting"}</span>
             ${renderAvatars()}
@@ -249,6 +258,11 @@ function render() {
       ${state.modal ? renderModal() : ""}
     </main>
   `;
+}
+
+function renderSyncStatus() {
+  const label = runtime.apiStatus === "online" ? "Local backend" : "This device";
+  return `<span class="sync-pill sync-${runtime.apiStatus}">${label}</span>`;
 }
 
 function renderPwaActions() {
@@ -1035,4 +1049,56 @@ function markUpdateReady(worker) {
   showToast("A new version is ready.");
 }
 
+async function hydrateStateFromApi() {
+  if (!location.protocol.startsWith("http")) {
+    runtime.apiStatus = "offline";
+    render();
+    return;
+  }
+
+  try {
+    const response = await fetch("api/state", { cache: "no-store" });
+    if (!response.ok) throw new Error("State API unavailable");
+
+    const data = await response.json();
+    runtime.apiStatus = "online";
+
+    if (data && Object.keys(data).length > 0) {
+      state = mergeState(defaultState, data);
+      writeStoredState(JSON.stringify(getPersistableState()));
+    }
+
+    render();
+  } catch {
+    runtime.apiStatus = "offline";
+    render();
+  }
+}
+
+function scheduleApiSave(cleanState) {
+  if (!location.protocol.startsWith("http")) return;
+
+  clearTimeout(apiSaveTimer);
+  apiSaveTimer = setTimeout(() => {
+    saveStateToApi(cleanState);
+  }, 350);
+}
+
+async function saveStateToApi(cleanState) {
+  try {
+    const response = await fetch("api/state", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(cleanState)
+    });
+
+    runtime.apiStatus = response.ok ? "online" : "offline";
+  } catch {
+    runtime.apiStatus = "offline";
+  }
+
+  render();
+}
+
 render();
+hydrateStateFromApi();
