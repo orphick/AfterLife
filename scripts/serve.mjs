@@ -3,9 +3,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 
-const root = resolve(".");
+const workspaceRoot = resolve(".");
+const builtRoot = resolve(join(workspaceRoot, "dist"));
+const root = existsSync(join(builtRoot, "index.html")) ? builtRoot : workspaceRoot;
 const preferredPort = Number.parseInt(process.env.PORT || "4173", 10);
-const stateFile = resolve(process.env.AFTERLIFE_STATE_FILE || join(root, "data", "afterlife.local.json"));
+const stateFile = resolve(process.env.AFTERLIFE_STATE_FILE || join(workspaceRoot, "data", "afterlife.local.json"));
 const dataDir = dirname(stateFile);
 
 const types = {

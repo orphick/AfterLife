@@ -1,29 +1,53 @@
 # AfterLife Web App
 
-A dependency-free web app built from the Mo & Aysel product mockup.
+AfterLife is a private long-distance web app for Mo and Aysel. It is now a React + Vite + TypeScript PWA with a Supabase-backed couple-space flow.
 
-## Run
+## Run Locally
 
 ```powershell
+npm.cmd install
 npm.cmd run dev
 ```
 
-Then open the localhost URL printed by the server.
-
-## Build
+Without Supabase env vars, the app runs in local-device mode using browser storage. The older local JSON API bridge is still available after a build:
 
 ```powershell
 npm.cmd run build
+npm.cmd run serve:api
 ```
 
-The static production files are written to `dist/`.
+## Supabase Setup
 
-## What is included
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL editor.
+3. Copy `.env.example` to `.env.local`.
+4. Fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+5. Restart `npm.cmd run dev`.
 
-- Four primary tabs: Home, Together, Memories, Library
-- Installable PWA shell with offline app caching
-- One Glimpse composer with local app state
-- Shared activity hub and private opt-in deck
-- Memories wall, timeline, open-when letters, and vault
-- PDF / EPUB library mock flow with reader notes
-- Consent and boundary rules surfaced in the UI
+The first shared flow is:
+
+- Sign up or sign in.
+- Create a couple space.
+- Copy the invite code.
+- Sign in as the second user and join with the code.
+- Memories, list ideas, reading notes, and preferences sync between both users.
+
+## Scripts
+
+```powershell
+npm.cmd run dev
+npm.cmd run typecheck
+npm.cmd run build
+npm.cmd run check
+npm.cmd run check:api
+```
+
+## Deployment Notes
+
+Vercel should use:
+
+- Build command: `npm run build`
+- Output directory: `dist`
+- Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+
+Also add the Vercel production and preview URLs in Supabase Auth redirect URL settings before sharing it.

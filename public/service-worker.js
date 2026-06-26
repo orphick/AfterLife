@@ -1,11 +1,9 @@
-const CACHE_NAME = "afterlife-static-v1";
+const CACHE_NAME = "afterlife-static-v2";
 const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./manifest.webmanifest",
-  "./icons/afterlife-icon.svg"
+  "/",
+  "/index.html",
+  "/manifest.webmanifest",
+  "/icons/afterlife-icon.svg"
 ];
 
 self.addEventListener("install", (event) => {
@@ -38,7 +36,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/")) {
     return;
   }
 
@@ -47,10 +45,10 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", copy));
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.match("/index.html"))
     );
     return;
   }

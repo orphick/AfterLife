@@ -4,9 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "vite build",
     "check:api": "node scripts/check-api.mjs",
-    "dev": "node scripts/serve.mjs",
-    "check": "node --check app.js && node --check service-worker.js && node --check scripts/serve.mjs && node --check scripts/build.mjs && node --check scripts/check-api.mjs"
+    "dev": "vite",
+    "preview": "vite preview",
+    "serve:api": "node scripts/serve.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && node --check public/service-worker.js && node --check scripts/serve.mjs && node --check scripts/check-api.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
+    "lucide-react": "^1.21.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0"
   }
 }
