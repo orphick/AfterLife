@@ -724,6 +724,86 @@ function App() {
     [activeSpace, addMemory, session?.user.id, showToast, state.noteDraft, state.notePageDraft, state.notes, state.spicy, updateState]
   );
 
+  const deleteNote = useCallback(
+    async (note: ReadingNote) => {
+      updateState({ notes: state.notes.filter((item) => item.id !== note.id) });
+
+      if (!supabase || !activeSpace || activeSpace.role === "local" || !note.remoteId) {
+        showToast("Note removed.");
+        return;
+      }
+
+      setSyncStatus("saving");
+      const { error } = await supabase.from("reading_notes").delete().eq("id", note.remoteId);
+      setSyncStatus(error ? "error" : "saved");
+      showToast(error ? "Note did not delete online." : "Note removed.");
+    },
+    [activeSpace, showToast, state.notes, updateState]
+  );
+
+  const updateFileProgress = useCallback(
+    async (file: LibraryFile, progress: number) => {
+      const nextProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+      updateState({
+        files: state.files.map((item) => (item.id === file.id ? { ...item, progress: nextProgress } : item)),
+        readingProgress: nextProgress
+      });
+
+      if (!supabase || !activeSpace || activeSpace.role === "local" || !file.remoteId) return;
+
+      setSyncStatus("saving");
+      const { error } = await supabase
+        .from("reading_items")
+        .update({ progress: nextProgress, updated_at: new Date().toISOString() })
+        .eq("id", file.remoteId);
+      setSyncStatus(error ? "error" : "saved");
+      if (error) showToast("Reading progress did not sync.");
+    },
+    [activeSpace, showToast, state.files, updateState]
+  );
+
+  const openLibraryFile = useCallback(
+    async (file: LibraryFile) => {
+      if (!supabase || !file.storagePath) {
+        showToast("This file was added locally and cannot be reopened after refresh.");
+        return;
+      }
+
+      const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(file.storagePath, 60);
+      if (error || !data?.signedUrl) {
+        showToast("Could not open this file.");
+        return;
+      }
+
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    },
+    [showToast]
+  );
+
+  const deleteLibraryFile = useCallback(
+    async (file: LibraryFile) => {
+      updateState({ files: state.files.filter((item) => item.id !== file.id) });
+
+      if (!supabase || !activeSpace || activeSpace.role === "local") {
+        showToast("Book removed.");
+        return;
+      }
+
+      setSyncStatus("saving");
+      const { error } = file.remoteId
+        ? await supabase.from("reading_items").delete().eq("id", file.remoteId)
+        : { error: null };
+
+      if (!error && file.storagePath) {
+        await supabase.storage.from(MEDIA_BUCKET).remove([file.storagePath]);
+      }
+
+      setSyncStatus(error ? "error" : "saved");
+      showToast(error ? "Book did not delete online." : "Book removed.");
+    },
+    [activeSpace, showToast, state.files, updateState]
+  );
+
   const uploadFiles = useCallback(
     async (files: FileList) => {
       if (supabase && activeSpace && activeSpace.role !== "local") {
@@ -876,13 +956,17 @@ function App() {
       deleteListItem,
       addListItem,
       addNote,
+      deleteNote,
+      updateFileProgress,
+      openLibraryFile,
+      deleteLibraryFile,
       saveMemoryDraft,
       saveAnswer,
       uploadFiles,
       showToast,
       copyInvite
     }),
-    [addListItem, addMemory, addNote, copyInvite, deleteListItem, deleteMemory, saveAnswer, saveMemoryDraft, showToast, updateState, uploadFiles]
+    [addListItem, addMemory, addNote, copyInvite, deleteLibraryFile, deleteListItem, deleteMemory, deleteNote, openLibraryFile, saveAnswer, saveMemoryDraft, showToast, updateFileProgress, updateState, uploadFiles]
   );
 
   function updateLocalList(updater: (current: AppState) => AppState) {

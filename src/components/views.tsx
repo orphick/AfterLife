@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Copy,
+  Download,
   Lock,
   Moon,
   Plus,
@@ -11,7 +12,7 @@ import {
   Upload
 } from "lucide-react";
 import { activities, boundaries, boundaryChecklist, glimpseKinds, moods } from "../lib/appData";
-import type { ActivityId, AppState, Boundary, GlimpseKind, LibraryFile, MemoryItem, MemoryView, Mood } from "../types/domain";
+import type { ActivityId, AppState, Boundary, GlimpseKind, LibraryFile, MemoryItem, MemoryView, Mood, ReadingNote } from "../types/domain";
 import { actionIcons, activityIcons } from "./icons";
 import { Avatars, Button, Chip, Field, IconBox, Progress, ViewHeader } from "./ui";
 
@@ -22,6 +23,10 @@ export interface ViewActions {
   deleteListItem: (item: string, index: number) => Promise<void>;
   addListItem: () => Promise<void>;
   addNote: (locked: boolean) => Promise<void>;
+  deleteNote: (note: ReadingNote) => Promise<void>;
+  updateFileProgress: (file: LibraryFile, progress: number) => Promise<void>;
+  openLibraryFile: (file: LibraryFile) => Promise<void>;
+  deleteLibraryFile: (file: LibraryFile) => Promise<void>;
   saveMemoryDraft: () => Promise<void>;
   saveAnswer: (isPrivate: boolean) => Promise<void>;
   uploadFiles: (files: FileList) => Promise<void>;
@@ -584,6 +589,26 @@ export function LibraryView({ state, actions }: ViewProps) {
                 </strong>
                 <p>{file.meta}</p>
                 <Progress value={file.progress} />
+                <div className="progress-steps" aria-label={`${file.title} reading progress`}>
+                  {[25, 50, 75, 100].map((value) => (
+                    <button
+                      className={file.progress === value ? "is-active" : ""}
+                      type="button"
+                      key={value}
+                      onClick={() => void actions.updateFileProgress(file, value)}
+                    >
+                      {value === 100 ? "Done" : `${value}%`}
+                    </button>
+                  ))}
+                </div>
+                <div className="button-row compact-actions">
+                  <Button icon={Download} small variant="secondary" onClick={() => actions.openLibraryFile(file)}>
+                    Open
+                  </Button>
+                  <Button icon={Trash2} small variant="secondary" onClick={() => actions.deleteLibraryFile(file)}>
+                    Remove
+                  </Button>
+                </div>
               </div>
             </article>
           ))
@@ -615,16 +640,22 @@ export function LibraryView({ state, actions }: ViewProps) {
         ) : (
           <p>Upload the first book above, then add notes from either account. Locked notes stay out of casual previews.</p>
         )}
-        <div className="note-rail">
+        <div className="note-list">
           {state.notes.length ? (
             state.notes.map((note) => (
-              <span className={note.locked ? "is-locked" : ""} key={note.id}>
-                {note.locked ? <Lock aria-hidden="true" /> : <StickyNote aria-hidden="true" />}
-                {note.page}
-              </span>
+              <article className={`list-card note-card ${note.locked ? "private-list-card" : ""}`} key={note.id}>
+                <IconBox icon={note.locked ? Lock : StickyNote} />
+                <div>
+                  <strong>{note.page}</strong>
+                  <p>{note.locked ? "Locked note preview hidden." : note.body}</p>
+                </div>
+                <button className="icon-button" type="button" title="Delete note" aria-label={`Delete note ${note.page}`} onClick={() => actions.deleteNote(note)}>
+                  <Trash2 aria-hidden="true" />
+                </button>
+              </article>
             ))
           ) : (
-            <span>No notes yet</span>
+            <EmptyState title="No notes yet" body="Add a page or section note below." />
           )}
         </div>
       </section>
@@ -666,6 +697,7 @@ export function LibraryView({ state, actions }: ViewProps) {
 
 export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
   const active = activities[state.activeActivity] || activities.read;
+  const activeFile = state.files[0];
 
   if (state.activeTab === "together") {
     return (
@@ -726,13 +758,20 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
         <p>Leave one text, voice, highlight, or locked note. Compare highlights after both finish.</p>
         <div className="progress-panel">
           <span>You</span>
-          <Progress value={state.readingProgress} />
+          <Progress value={activeFile ? activeFile.progress : state.readingProgress} />
           <input
             type="range"
             min="0"
             max="100"
-            value={state.readingProgress}
-            onChange={(event) => actions.updateState({ readingProgress: Number(event.currentTarget.value) })}
+            value={activeFile ? activeFile.progress : state.readingProgress}
+            onChange={(event) => {
+              const progress = Number(event.currentTarget.value);
+              if (activeFile) {
+                void actions.updateFileProgress(activeFile, progress);
+                return;
+              }
+              actions.updateState({ readingProgress: progress });
+            }}
           />
         </div>
         <div className="context-actions">
