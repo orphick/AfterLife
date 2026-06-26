@@ -19,8 +19,10 @@ export interface ViewActions {
   updateState: (patch: Partial<AppState>) => void;
   addMemory: (title: string, body: string, isPrivate?: boolean, kind?: string) => Promise<void>;
   deleteMemory: (memory: MemoryItem) => Promise<void>;
+  deleteListItem: (item: string, index: number) => Promise<void>;
   addListItem: () => Promise<void>;
   addNote: (locked: boolean) => Promise<void>;
+  saveMemoryDraft: () => Promise<void>;
   saveAnswer: (isPrivate: boolean) => Promise<void>;
   uploadFiles: (files: FileList) => Promise<void>;
   showToast: (message: string) => void;
@@ -147,7 +149,11 @@ export function HomeView({ state, actions }: ViewProps) {
           <Button
             icon={Send}
             onClick={async () => {
-              await actions.addMemory(`${state.glimpseKind} sent`, state.glimpseCaption || "One Glimpse", false, "glimpse");
+              if (!state.glimpseCaption.trim()) {
+                actions.showToast("Write the glimpse first.");
+                return;
+              }
+              await actions.addMemory(`${state.glimpseKind} sent`, state.glimpseCaption, false, "glimpse");
               actions.showToast("Glimpse sent and saved.");
             }}
           >
@@ -157,7 +163,11 @@ export function HomeView({ state, actions }: ViewProps) {
             icon={actionIcons.book}
             variant="secondary"
             onClick={async () => {
-              await actions.addMemory("One Glimpse saved", state.glimpseCaption || "One Glimpse", false, "glimpse");
+              if (!state.glimpseCaption.trim()) {
+                actions.showToast("Write the glimpse first.");
+                return;
+              }
+              await actions.addMemory("One Glimpse saved", state.glimpseCaption, false, "glimpse");
               actions.showToast("Saved to Memories.");
             }}
           >
@@ -211,7 +221,7 @@ export function TogetherView({ state, actions }: ViewProps) {
         <p>{active.copy}</p>
         <div className="chip-row">
           {active.chips.map((item) => (
-            <Chip key={item}>{item}</Chip>
+            <span className="label-chip" key={item}>{item}</span>
           ))}
         </div>
       </section>
@@ -292,8 +302,13 @@ export function TogetherView({ state, actions }: ViewProps) {
         </div>
         <div className="mini-list">
           {state.listItems.length ? (
-            state.listItems.slice(0, 5).map((item) => (
-              <span key={item}>{item}</span>
+            state.listItems.slice(0, 5).map((item, index) => (
+              <span className="mini-list-item" key={`${item}-${index}`}>
+                {item}
+                <button type="button" title="Remove idea" aria-label={`Remove ${item}`} onClick={() => void actions.deleteListItem(item, index)}>
+                  x
+                </button>
+              </span>
             ))
           ) : (
             <em>No ideas yet. Add the first movie, food, book, or visit plan.</em>
@@ -320,7 +335,19 @@ export function MemoriesView({ state, actions }: ViewProps) {
         eyebrow="Private archive"
         title="Memories"
         right={
-          <Button icon={Plus} small onClick={() => actions.addMemory("New memory", "A small moment saved today.", false, "memory")}>
+          <Button
+            icon={Plus}
+            small
+            onClick={() =>
+              actions.updateState({
+                modal: "memory",
+                memoryTitleDraft: "",
+                memoryBodyDraft: "",
+                memoryKindDraft: "memory",
+                memoryPrivateDraft: false
+              })
+            }
+          >
             Save
           </Button>
         }
@@ -373,7 +400,18 @@ function renderMemoryView(state: AppState, actions: ViewActions) {
             <strong>Letters for specific moments</strong>
           </div>
           <div className="button-row">
-            <Button icon={StickyNote} onClick={() => actions.addMemory("Open when you miss me", "Write the first letter body here.", false, "letter")}>
+            <Button
+              icon={StickyNote}
+              onClick={() =>
+                actions.updateState({
+                  modal: "memory",
+                  memoryTitleDraft: "Open when you miss me",
+                  memoryBodyDraft: "",
+                  memoryKindDraft: "letter",
+                  memoryPrivateDraft: false
+                })
+              }
+            >
               New letter
             </Button>
           </div>
@@ -425,9 +463,9 @@ function renderMemoryView(state: AppState, actions: ViewActions) {
         </div>
         <div className="chip-row">
           {["photos", "voice", "quotes", "dates", "book highlights", "private"].map((item) => (
-            <Chip key={item} privateTone={item === "private"}>
+            <span className={`label-chip ${item === "private" ? "private-label-chip" : ""}`} key={item}>
               {item}
-            </Chip>
+            </span>
           ))}
         </div>
       </section>
@@ -482,6 +520,12 @@ function EmptyState({ title, body }: { title: string; body: string }) {
 
 export function LibraryView({ state, actions }: ViewProps) {
   const activeFile = state.files[0];
+  const visibleFiles = state.files.filter((file) => {
+    if (state.libraryView === "finished") return file.progress >= 100;
+    if (state.libraryView === "mine") return file.meta.toLowerCase().includes("uploaded");
+    if (state.libraryView === "aysel") return file.meta.toLowerCase().includes("aysel");
+    return true;
+  });
 
   return (
     <>
@@ -522,16 +566,16 @@ export function LibraryView({ state, actions }: ViewProps) {
         </div>
         <div className="chip-row">
           {["PDF", "EPUB", "highlights", "bookmarks", "search", "night mode"].map((item) => (
-            <Chip key={item} active={item === "PDF" || item === "EPUB"}>
+            <span className={`label-chip ${item === "PDF" || item === "EPUB" ? "is-active" : ""}`} key={item}>
               {item}
-            </Chip>
+            </span>
           ))}
         </div>
       </section>
 
       <section className="stack-list">
-        {state.files.length ? (
-          state.files.map((file: LibraryFile) => (
+        {visibleFiles.length ? (
+          visibleFiles.map((file: LibraryFile) => (
             <article className="list-card file-card" key={file.id}>
               <IconBox icon={BookOpen} />
               <div>
@@ -544,7 +588,10 @@ export function LibraryView({ state, actions }: ViewProps) {
             </article>
           ))
         ) : (
-          <EmptyState title="No shared books yet" body="Upload a PDF or EPUB and it will become a synced reading item for both accounts." />
+          <EmptyState
+            title={state.files.length ? "Nothing in this filter" : "No shared books yet"}
+            body={state.files.length ? "Switch tabs or upload another PDF or EPUB." : "Upload a PDF or EPUB and it will become a synced reading item for both accounts."}
+          />
         )}
       </section>
 
@@ -587,6 +634,15 @@ export function LibraryView({ state, actions }: ViewProps) {
           <span className="meta">Add margin note</span>
           <strong>{state.notes.length} notes saved</strong>
         </div>
+        <Field
+          compact
+          label="Page or section"
+          type="text"
+          value={state.notePageDraft}
+          maxLength={24}
+          placeholder="p.21, ch.3, quote"
+          onChange={(event) => actions.updateState({ notePageDraft: event.currentTarget.value })}
+        />
         <Field
           compact
           label="Note"
@@ -641,8 +697,15 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
           <Button
             icon={StickyNote}
             onClick={() => {
-              void actions.addMemory("Open when you miss me", "A letter for a future moment.", false, "letter");
-              actions.updateState({ activeTab: "memories", memoriesView: "letters" });
+              actions.updateState({
+                activeTab: "memories",
+                memoriesView: "letters",
+                modal: "memory",
+                memoryTitleDraft: "Open when you miss me",
+                memoryBodyDraft: "",
+                memoryKindDraft: "letter",
+                memoryPrivateDraft: false
+              });
             }}
           >
             New letter
@@ -673,10 +736,29 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
           />
         </div>
         <div className="context-actions">
-          <Button icon={actionIcons.book} onClick={() => actions.addMemory("Shared highlight", "This line reminded me of you.", false, "reading")}>
+          <Button
+            icon={actionIcons.book}
+            onClick={() =>
+              actions.updateState({
+                activeTab: "memories",
+                modal: "memory",
+                memoryTitleDraft: "Shared highlight",
+                memoryBodyDraft: "",
+                memoryKindDraft: "reading",
+                memoryPrivateDraft: false
+              })
+            }
+          >
             Save highlight
           </Button>
-          <Button icon={Lock} variant="secondary" onClick={() => actions.addNote(true)}>
+          <Button
+            icon={Lock}
+            variant="secondary"
+            onClick={() => {
+              actions.updateState({ activeTab: "library" });
+              actions.showToast("Write the locked note first.");
+            }}
+          >
             Add locked note
           </Button>
         </div>
@@ -701,7 +783,16 @@ export function ContextPanel({ state, actions, inviteCode }: ViewProps) {
       ) : null}
       <BoundaryChecklist />
       <div className="context-actions">
-        <Button icon={Send} onClick={() => actions.addMemory(`${state.glimpseKind} sent`, state.glimpseCaption, false, "glimpse")}>
+        <Button
+          icon={Send}
+          onClick={() => {
+            if (!state.glimpseCaption.trim()) {
+              actions.showToast("Write the glimpse first.");
+              return;
+            }
+            void actions.addMemory(`${state.glimpseKind} sent`, state.glimpseCaption, false, "glimpse");
+          }}
+        >
           Send glimpse
         </Button>
         <Button icon={BookOpen} variant="secondary" onClick={() => actions.updateState({ activeTab: "library" })}>

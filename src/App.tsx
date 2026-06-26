@@ -656,6 +656,27 @@ function App() {
     showToast("Idea added.");
   }, [activeSpace, session?.user.id, showToast, state.listDraft, state.listItems, updateState]);
 
+  const deleteListItem = useCallback(
+    async (item: string, index: number) => {
+      updateState({ listItems: state.listItems.filter((_, itemIndex) => itemIndex !== index) });
+
+      if (!supabase || !activeSpace || activeSpace.role === "local") {
+        showToast("Idea removed.");
+        return;
+      }
+
+      setSyncStatus("saving");
+      const { error } = await supabase
+        .from("list_items")
+        .delete()
+        .eq("space_id", activeSpace.id)
+        .eq("title", item);
+      setSyncStatus(error ? "error" : "saved");
+      showToast(error ? "Idea did not delete online." : "Idea removed.");
+    },
+    [activeSpace, showToast, state.listItems, updateState]
+  );
+
   const addNote = useCallback(
     async (locked: boolean) => {
       if (locked && !(state.spicy.mo && state.spicy.aysel)) {
@@ -663,8 +684,14 @@ function App() {
         return;
       }
 
-      const body = state.noteDraft.trim() || (locked ? "Locked note for the end of the chapter." : "This paragraph is so you.");
-      const note: ReadingNote = { id: `n${Date.now()}`, page: "p.21", body, locked };
+      const body = state.noteDraft.trim();
+      if (!body) {
+        showToast("Write the note first.");
+        return;
+      }
+
+      const page = state.notePageDraft.trim() || "General";
+      const note: ReadingNote = { id: `n${Date.now()}`, page, body, locked };
 
       if (supabase && activeSpace && activeSpace.role !== "local") {
         setSyncStatus("saving");
@@ -673,7 +700,7 @@ function App() {
           .insert({
             space_id: activeSpace.id,
             created_by: session?.user.id,
-            page: note.page,
+            page,
             body,
             is_locked: locked
           })
@@ -690,11 +717,11 @@ function App() {
         note.id = `remote-note-${data.id}`;
       }
 
-      updateState({ notes: [note, ...state.notes], noteDraft: "" });
+      updateState({ notes: [note, ...state.notes], noteDraft: "", notePageDraft: "" });
       await addMemory(locked ? "Locked reading note" : "Margin note", body, locked, locked ? "vault" : "reading");
       showToast(locked ? "Locked note added." : "Note added.");
     },
-    [activeSpace, addMemory, session?.user.id, showToast, state.noteDraft, state.notes, state.spicy, updateState]
+    [activeSpace, addMemory, session?.user.id, showToast, state.noteDraft, state.notePageDraft, state.notes, state.spicy, updateState]
   );
 
   const uploadFiles = useCallback(
@@ -803,6 +830,33 @@ function App() {
     [addMemory, showToast, state.questionDraft, updateState]
   );
 
+  const saveMemoryDraft = useCallback(async () => {
+    const title = state.memoryTitleDraft.trim();
+    const body = state.memoryBodyDraft.trim();
+
+    if (!title || !body) {
+      showToast("Add a title and a body first.");
+      return;
+    }
+
+    if (state.memoryPrivateDraft && !(state.spicy.mo && state.spicy.aysel)) {
+      showToast("Private memories need both toggles.");
+      return;
+    }
+
+    await addMemory(title, body, state.memoryPrivateDraft, state.memoryPrivateDraft ? "vault" : state.memoryKindDraft || "memory");
+    updateState({
+      modal: null,
+      memoryTitleDraft: "",
+      memoryBodyDraft: "",
+      memoryKindDraft: "memory",
+      memoryPrivateDraft: false,
+      activeTab: "memories",
+      memoriesView: state.memoryPrivateDraft ? "vault" : state.memoryKindDraft === "letter" ? "letters" : "wall"
+    });
+    showToast("Memory saved.");
+  }, [addMemory, showToast, state.memoryBodyDraft, state.memoryKindDraft, state.memoryPrivateDraft, state.memoryTitleDraft, state.spicy, updateState]);
+
   const copyInvite = useCallback(async () => {
     if (!activeSpace?.inviteCode) return;
 
@@ -819,14 +873,16 @@ function App() {
       updateState,
       addMemory,
       deleteMemory,
+      deleteListItem,
       addListItem,
       addNote,
+      saveMemoryDraft,
       saveAnswer,
       uploadFiles,
       showToast,
       copyInvite
     }),
-    [addListItem, addMemory, addNote, copyInvite, deleteMemory, saveAnswer, showToast, updateState, uploadFiles]
+    [addListItem, addMemory, addNote, copyInvite, deleteListItem, deleteMemory, saveAnswer, saveMemoryDraft, showToast, updateState, uploadFiles]
   );
 
   function updateLocalList(updater: (current: AppState) => AppState) {
@@ -993,7 +1049,7 @@ function App() {
           {state.toast}
         </div>
       ) : null}
-      {state.modal ? <AnswerModal state={state} actions={actions} /> : null}
+      {state.modal ? <EntryModal state={state} actions={actions} /> : null}
     </main>
   );
 }
@@ -1229,7 +1285,86 @@ function SpaceScreen({
   );
 }
 
-function AnswerModal({ state, actions }: { state: AppState; actions: ViewActions }) {
+function EntryModal({ state, actions }: { state: AppState; actions: ViewActions }) {
+  if (state.modal === "memory") {
+    return (
+      <div
+        className="modal-backdrop"
+        onClick={() =>
+          actions.updateState({
+            modal: null,
+            memoryTitleDraft: "",
+            memoryBodyDraft: "",
+            memoryKindDraft: "memory",
+            memoryPrivateDraft: false
+          })
+        }
+      >
+        <section className="modal" role="dialog" aria-modal="true" aria-label="Save memory" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-header">
+            <div>
+              <span className="meta">Shared archive</span>
+              <h2>Save memory</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              title="Close"
+              aria-label="Close"
+              onClick={() =>
+                actions.updateState({
+                  modal: null,
+                  memoryTitleDraft: "",
+                  memoryBodyDraft: "",
+                  memoryKindDraft: "memory",
+                  memoryPrivateDraft: false
+                })
+              }
+            >
+              x
+            </button>
+          </div>
+          <Field
+            label="Title"
+            value={state.memoryTitleDraft}
+            maxLength={72}
+            autoFocus
+            onChange={(event) => actions.updateState({ memoryTitleDraft: event.currentTarget.value })}
+          />
+          <div className="chip-row" role="group" aria-label="Memory kind">
+            {["memory", "letter", "reading", "plan", "glimpse"].map((kind) => (
+              <ChipButton key={kind} active={state.memoryKindDraft === kind} onClick={() => actions.updateState({ memoryKindDraft: kind })}>
+                {kind[0].toUpperCase() + kind.slice(1)}
+              </ChipButton>
+            ))}
+          </div>
+          <label className="field">
+            <span>Body</span>
+            <textarea
+              value={state.memoryBodyDraft}
+              maxLength={520}
+              placeholder="Write the actual thing you want saved"
+              onChange={(event) => actions.updateState({ memoryBodyDraft: event.currentTarget.value })}
+            />
+          </label>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={state.memoryPrivateDraft}
+              onChange={(event) => actions.updateState({ memoryPrivateDraft: event.currentTarget.checked })}
+            />
+            <span>Save in private vault</span>
+          </label>
+          <div className="button-row">
+            <Button icon={state.memoryPrivateDraft ? Lock : StickyNote} variant={state.memoryPrivateDraft ? "danger" : "primary"} onClick={() => actions.saveMemoryDraft()}>
+              Save memory
+            </Button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   const isPrivate = state.modal === "private-question";
   return (
     <div className="modal-backdrop" onClick={() => actions.updateState({ modal: null, questionDraft: "" })}>

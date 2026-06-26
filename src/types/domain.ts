@@ -66,11 +66,16 @@ export interface AppState {
   readingProgress: number;
   readerNight: boolean;
   toast: string;
-  modal: null | "question" | "private-question";
+  modal: null | "question" | "private-question" | "memory";
   questionMode: "soft" | "private";
   questionDraft: string;
+  memoryTitleDraft: string;
+  memoryBodyDraft: string;
+  memoryKindDraft: string;
+  memoryPrivateDraft: boolean;
   glimpseCaption: string;
   listDraft: string;
+  notePageDraft: string;
   noteDraft: string;
   files: LibraryFile[];
   memories: MemoryItem[];

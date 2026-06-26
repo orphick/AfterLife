@@ -22,7 +22,12 @@ export function mergeState(saved: Partial<AppState> | null | undefined): AppStat
     notes: Array.isArray(saved.notes) ? saved.notes : base.notes,
     toast: "",
     modal: null,
-    questionDraft: ""
+    questionDraft: "",
+    memoryTitleDraft: "",
+    memoryBodyDraft: "",
+    memoryKindDraft: saved.memoryKindDraft || base.memoryKindDraft,
+    memoryPrivateDraft: Boolean(saved.memoryPrivateDraft),
+    notePageDraft: saved.notePageDraft || ""
   };
 }
 
@@ -31,7 +36,9 @@ export function getPersistableState(state: AppState): AppState {
     ...state,
     toast: "",
     modal: null,
-    questionDraft: ""
+    questionDraft: "",
+    memoryTitleDraft: "",
+    memoryBodyDraft: ""
   };
 }
 

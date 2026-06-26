@@ -448,6 +448,31 @@ p {
   font-weight: 850;
 }
 
+.label-chip {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 11px;
+  color: #655b62;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.label-chip.is-active {
+  color: #fff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.private-label-chip {
+  color: #fff;
+  background: var(--rose-dark);
+  border-color: var(--rose-dark);
+}
+
 .chip.is-active {
   color: #fff;
   background: var(--ink);
@@ -628,13 +653,34 @@ p {
   margin-top: 12px;
 }
 
-.mini-list span {
+.mini-list span,
+.mini-list-item {
   padding: 8px 10px;
   color: #63545b;
   background: #f8f2ef;
   border-radius: var(--radius);
   font-size: 0.8rem;
   font-weight: 800;
+}
+
+.mini-list-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mini-list-item button {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #6a3846;
+  background: #fae4e8;
+  border: 0;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 950;
 }
 
 .mini-list em {
@@ -894,6 +940,22 @@ input[type="range"] {
   min-height: 150px;
   padding: 12px;
   resize: vertical;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.check-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--rose-dark);
 }
 
 .auth-shell {
